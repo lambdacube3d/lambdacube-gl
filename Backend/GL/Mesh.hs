@@ -7,7 +7,8 @@ module Backend.GL.Mesh (
     updateMesh,
     Mesh(..),
     MeshPrimitive(..),
-    MeshAttribute(..)
+    MeshAttribute(..),
+    GPUData
 ) where
 
 import Control.Applicative
