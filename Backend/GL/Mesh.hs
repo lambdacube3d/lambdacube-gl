@@ -1,5 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 module Backend.GL.Mesh (
+    loadMesh',
     loadMesh,
     saveMesh,
     addMesh,
@@ -65,8 +66,11 @@ data GPUData
     , dIndices      :: Maybe (IndexStream Buffer)
     }
 
+loadMesh' :: String -> IO Mesh
+loadMesh' n = decode <$> LB.readFile n
+
 loadMesh :: String -> IO Mesh
-loadMesh n = compileMesh =<< decode <$> LB.readFile n
+loadMesh n = compileMesh =<< loadMesh' n
 
 saveMesh :: String -> Mesh -> IO ()
 saveMesh n m = LB.writeFile n (encode m)
