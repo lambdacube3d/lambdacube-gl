@@ -18,7 +18,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:
-    SampleIR
+    --SampleIR
     -- Backend
     Backend.GL
     Backend.GL.Backend
