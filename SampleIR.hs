@@ -137,11 +137,12 @@ main = do
 
     let setup = do
           let sn = ExpN srcName
-          pplRes <- compileMain "../lambdacube-dsl/tests/accept" sn
+          pplRes <- compileMain (ioFetch ["."]) OpenGL33 undefined sn
           case pplRes of
-            Left err -> putStrLn ("error: " ++ err) >> return Nothing
-            Right ppl -> do
+            (Left err,a) -> putStrLn ("error: " ++ show err ++ show a) >> return Nothing
+            (Right (ppl,a),b) -> do
               putStrLn $ ppShow ppl
+              print [a,b]
               renderer <- allocPipeline ppl
               setPipelineInput renderer (Just pplInput)
               sortSlotObjects pplInput
