@@ -225,7 +225,10 @@ compileProgram uniTrie p = do
     (attributes,attributesType) <- queryStreams po
     print uniforms
     print attributes
-    when (uniformsType /= (toTrie $ programUniforms p) `unionL` (toTrie $ programInTextures p)) $ fail "shader program uniform input mismatch!"
+    when (uniformsType /= (toTrie $ programUniforms p) `unionL` (toTrie $ programInTextures p)) $ do
+      putStrLn $ "expected: " ++ show ((toTrie $ programUniforms p) `unionL` (toTrie $ programInTextures p))
+      putStrLn $ "actual: " ++ show uniformsType
+      fail "shader program uniform input mismatch!"
     when (attributesType /= fmap snd (toTrie $ programStreams p)) $ fail $ "shader program stream input mismatch! " ++ show (attributesType,fmap snd (toTrie $ programStreams p))
     -- the public (user) pipeline and program input is encoded by the slots, therefore the programs does not distinct the render and slot textures input
     let inUniNames = toTrie $ programUniforms p

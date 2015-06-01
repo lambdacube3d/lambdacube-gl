@@ -139,10 +139,10 @@ main = do
           let sn = ExpN srcName
           pplRes <- compileMain (ioFetch ["."]) OpenGL33 undefined sn
           case pplRes of
-            (Left err,a) -> putStrLn ("error: " ++ show err ++ show a) >> return Nothing
+            (Left err,a) -> putStrLn ("error: " ++ show err) >> return Nothing
             (Right (ppl,a),b) -> do
               putStrLn $ ppShow ppl
-              print [a,b]
+              --print [a,b]
               renderer <- allocPipeline ppl
               setPipelineInput renderer (Just pplInput)
               sortSlotObjects pplInput
