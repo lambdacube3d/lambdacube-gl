@@ -9,7 +9,7 @@ import Data.Vect
 import qualified Data.Trie as T
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector as V
-import Text.Show.Pretty
+import Text.Show.Pretty hiding (Float)
 
 import Backend.GL as GL
 import Backend.GL.Mesh
@@ -125,7 +125,7 @@ main = do
           { GL.slots = T.fromList [("stream",SlotSchema Triangles $ T.fromList [("position",TV3F),("normal",TV3F),("UVTex",TV2F)])
                                   ,("stream4",SlotSchema Triangles $ T.fromList [("position4",TV4F),("vertexUV",TV2F)])
                                   ]
-          , uniforms = T.fromList [("MVP",M44F),("MVP2",M44F)]
+          , uniforms = T.fromList [("MVP",M44F),("MVP2",M44F),("Time",Float)]
           }
     pplInput <- mkGLPipelineInput inputSchema
 
@@ -156,8 +156,9 @@ main = do
             let uniformMap      = uniformSetter pplInput
                 texture         = uniformFTexture2D "myTextureSampler" uniformMap
                 mvp             = uniformM44F "MVP" uniformMap
-                mvp'             = uniformM44F "MVP2" uniformMap
+                mvp'            = uniformM44F "MVP2" uniformMap
                 pm              = perspective 0.1 100 (pi/4) (fromIntegral w / fromIntegral h)
+                time            = uniformFloat "Time" uniformMap
 
             setScreenSize pplInput (fromIntegral w) (fromIntegral h)
             Just t <- getTime
@@ -165,6 +166,7 @@ main = do
                 mm = fromProjective $ rotationEuler $ Vec3 angle 0 0
             mvp $! mat4ToM44F $! mm .*. cm .*. pm
             mvp' $! mat4ToM44F $! mm .*. cm' .*. pm
+            time $ realToFrac t
             renderPipeline renderer
             swapBuffers win >> pollEvents
 
