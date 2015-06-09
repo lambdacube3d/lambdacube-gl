@@ -8,9 +8,10 @@ import Data.Bits
 import Data.ByteString.Char8 (ByteString,pack)
 import Data.IORef
 import Data.IntMap (IntMap)
-import Data.Maybe (isNothing)
+import Data.Maybe (isNothing,fromJust)
 import Data.Set (Set)
 import Data.Trie as T
+import Data.Trie.Convenience as T
 import Data.Vector (Vector,(!),(//))
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.Foldable as F
@@ -25,11 +26,13 @@ import Graphics.Rendering.OpenGL.Raw.Core33
 import Foreign
 
 -- LC IR imports
-import IR as IR
+import IR hiding (streamType)
+import qualified IR as IR
 
 import Backend.GL.Type
 import Backend.GL.Util
 
+import Backend.GL.Data
 import Backend.GL.Input
 
 setupRasterContext :: RasterContext -> IO ()
@@ -225,11 +228,17 @@ compileProgram uniTrie p = do
     (attributes,attributesType) <- queryStreams po
     print uniforms
     print attributes
-    when (uniformsType /= (toTrie $ programUniforms p) `unionL` (toTrie $ programInTextures p)) $ do
-      putStrLn $ "expected: " ++ show ((toTrie $ programUniforms p) `unionL` (toTrie $ programInTextures p))
+    let lcUniforms = (toTrie $ programUniforms p) `unionL` (toTrie $ programInTextures p)
+        lcStreams = fmap snd (toTrie $ programStreams p)
+        check a m = and $ map go $ T.toList m
+          where go (k,b) = case T.lookup k a of
+                  Nothing -> True
+                  Just x -> x == b
+    unless (check lcUniforms uniformsType) $ do
+      putStrLn $ "expected: " ++ show lcUniforms
       putStrLn $ "actual: " ++ show uniformsType
       fail "shader program uniform input mismatch!"
-    when (attributesType /= fmap snd (toTrie $ programStreams p)) $ fail $ "shader program stream input mismatch! " ++ show (attributesType,fmap snd (toTrie $ programStreams p))
+    unless (check lcStreams attributesType) $ fail $ "shader program stream input mismatch! " ++ show (attributesType,lcStreams)
     -- the public (user) pipeline and program input is encoded by the slots, therefore the programs does not distinct the render and slot textures input
     let inUniNames = toTrie $ programUniforms p
         (inUniforms,inTextures) = L.partition (\(n,v) -> T.member n inUniNames) $ T.toList $ uniforms
@@ -351,6 +360,130 @@ compileRenderTarget texs glTexs (RenderTarget targets) = do
                 , framebufferDrawbuffers    = Nothing
                 }
 
+compileStreamData :: StreamData -> IO GLStream
+compileStreamData s = do
+  let withV w a f = w a (\p -> f $ castPtr p)
+  let compileAttr (VFloatArray v) = Array ArrFloat (length v) (withV withArray v)
+      compileAttr (VIntArray v) = Array ArrInt32 (length v) (withV withArray v)
+      compileAttr (VWordArray v) = Array ArrWord32 (length v) (withV withArray v)
+      --TODO: compileAttr (VBoolArray v) = Array ArrWord32 (length v) (withV withArray v)
+      (indexMap,arrays) = unzip [((n,i),compileAttr d) | (i,(n,d)) <- zip [0..] $ Map.toList $ streamData s]
+      getLength n = l `div` c
+        where
+          l = case Map.lookup n $ IR.streamData s of
+            Just (VFloatArray v) -> length v
+            Just (VIntArray v) -> length v
+            Just (VWordArray v) -> length v
+            _ -> error "compileStreamData - getLength"
+          c = case Map.lookup n $ IR.streamType s of
+            Just Bool   -> 1
+            Just V2B    -> 2
+            Just V3B    -> 3
+            Just V4B    -> 4
+            Just Word   -> 1
+            Just V2U    -> 2
+            Just V3U    -> 3
+            Just V4U    -> 4
+            Just Int    -> 1
+            Just V2I    -> 2
+            Just V3I    -> 3
+            Just V4I    -> 4
+            Just Float  -> 1
+            Just V2F    -> 2
+            Just V3F    -> 3
+            Just V4F    -> 4
+            Just M22F   -> 4
+            Just M23F   -> 6
+            Just M24F   -> 8
+            Just M32F   -> 6
+            Just M33F   -> 9
+            Just M34F   -> 12
+            Just M42F   -> 8
+            Just M43F   -> 12
+            Just M44F   -> 16
+            _ -> error "compileStreamData - getLength element count"
+  buffer <- compileBuffer arrays
+  cmdRef <- newIORef []
+  let toStream (n,i) = (n,Stream
+        { streamType    = fromJust $ toStreamType =<< Map.lookup n (IR.streamType s)
+        , streamBuffer  = buffer
+        , streamArrIdx  = i
+        , streamStart   = 0
+        , streamLength  = getLength n
+        })
+  return $ GLStream
+    { glStreamCommands    = cmdRef
+    , glStreamPrimitive   = case streamPrimitive s of
+        Points              -> PointList
+        Lines               -> LineList
+        Triangles           -> TriangleList
+        LinesAdjacency      -> LineListAdjacency
+        TrianglesAdjacency  -> TriangleListAdjacency
+    , glStreamAttributes  = toTrie $ Map.fromList $ map toStream indexMap
+    , glStreamProgram     = head $ streamPrograms s
+    }
+
+createStreamCommands :: Trie (IORef GLint) -> Trie GLUniform -> Trie (Stream Buffer) -> Primitive -> GLProgram -> [GLObjectCommand]
+createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds ++ streamCmds ++ [drawCmd]
+  where
+    -- object draw command
+    drawCmd = GLDrawArrays prim 0 (fromIntegral count)
+      where
+        prim = primitiveToGLType primitive
+        count = head [c | Stream _ _ _ _ c <- T.elems attrs]
+
+    -- object uniform commands
+    -- texture slot setup commands
+    streamUniCmds = uniCmds ++ texCmds
+      where
+        uniCmds = [GLSetUniform i u | (n,i) <- uniMap, let u = topUni n]
+        uniMap  = T.toList $ inputUniforms prg
+        topUni n = T.lookupWithDefault (error "internal error (createStreamCommands)!") n topUnis
+        texUnis = S.toList $ inputTextureUniforms prg
+        texCmds = [ GLBindTexture (inputTypeToTextureTarget $ uniInputType u) texUnit u
+                  | n <- texUnis
+                  , let u = topUni n
+                  , let texUnit = T.lookupWithDefault (error "internal error (createStreamCommands - Texture Unit)") n texUnitMap
+                  ]
+        uniInputType (GLUniform ty _) = ty
+
+    -- object attribute stream commands
+    streamCmds = [attrCmd i s | (i,name) <- T.elems attrMap, let Just s = T.lookup name attrs]
+      where 
+        attrMap = inputStreams prg
+        attrCmd i s = case s of
+            Stream ty (Buffer arrs bo) arrIdx start len -> case ty of
+                TWord   -> setIntAttrib 1
+                TV2U    -> setIntAttrib 2
+                TV3U    -> setIntAttrib 3
+                TV4U    -> setIntAttrib 4
+                TInt    -> setIntAttrib 1
+                TV2I    -> setIntAttrib 2
+                TV3I    -> setIntAttrib 3
+                TV4I    -> setIntAttrib 4
+                TFloat  -> setFloatAttrib 1
+                TV2F    -> setFloatAttrib 2
+                TV3F    -> setFloatAttrib 3
+                TV4F    -> setFloatAttrib 4
+                TM22F   -> setFloatAttrib 4
+                TM23F   -> setFloatAttrib 6
+                TM24F   -> setFloatAttrib 8
+                TM32F   -> setFloatAttrib 6
+                TM33F   -> setFloatAttrib 9
+                TM34F   -> setFloatAttrib 12
+                TM42F   -> setFloatAttrib 8
+                TM43F   -> setFloatAttrib 12
+                TM44F   -> setFloatAttrib 16
+              where
+                setFloatAttrib n = GLSetVertexAttribArray i bo n glType (ptr n)
+                setIntAttrib n = GLSetVertexAttribIArray i bo n glType (ptr n)
+                ArrayDesc arrType arrLen arrOffs arrSize = arrs ! arrIdx
+                glType = arrayTypeToGLType arrType
+                ptr compCnt   = intPtrToPtr $! fromIntegral (arrOffs + start * fromIntegral compCnt * sizeOfArrayType arrType)
+
+            -- constant generic attribute
+            constAttr -> GLSetVertexAttrib i constAttr
+
 allocPipeline :: Pipeline -> IO GLPipeline
 allocPipeline p = do
     let uniTrie = uniforms $ schemaFromPipeline p
@@ -364,6 +497,7 @@ allocPipeline p = do
     input <- newIORef Nothing
     -- default Vertex Array Object
     vao <- alloca $! \pvao -> glGenVertexArrays 1 pvao >> peek pvao
+    strs <- V.mapM compileStreamData $ V.fromList $ streams p
     return $ GLPipeline
         { glPrograms        = prgs
         , glTextures        = texs
@@ -375,6 +509,7 @@ allocPipeline p = do
         , glSlotNames       = V.map (pack . slotName) $ V.fromList $ IR.slots p
         , glVAO             = vao
         , glTexUnitMapping  = texUnitMapRefs
+        , glStreams         = strs
         }
 
 disposePipeline :: GLPipeline -> IO ()
@@ -503,6 +638,9 @@ setPipelineInput p input' = do
                 forM_ (IM.elems $ objectMap slot) $ \obj -> do
                     let cmdV = emptyV // [(prgIdx,createObjectCommands texUnitMap topUnis obj (progV ! prgIdx)) | prgIdx <- prgs]
                     modifyIORef (objCommands obj) $ \v -> extend v // [(idx,cmdV)]
+            -- generate stream commands
+            V.forM_ (glStreams p) $ \s -> do
+              writeIORef (glStreamCommands s) $ createStreamCommands texUnitMap topUnis (glStreamAttributes s) (glStreamPrimitive s) (progV ! glStreamProgram s)
 {-
   track state:
     - render target
@@ -596,6 +734,8 @@ renderPipeline glp = do
             GLSetTexture tu target tx       -> glActiveTexture tu >> glBindTexture target tx
             GLClearRenderTarget vals        -> clearRenderTarget vals
             GLGenerateMipMap tu target      -> glActiveTexture tu >> glGenerateMipmap target
+            GLRenderStream streamIdx progIdx  -> do
+                                                renderSlot =<< readIORef (glStreamCommands $ glStreams glp ! streamIdx)
             GLRenderSlot slotIdx progIdx    -> do
                                                 input <- readIORef (glInput glp)
                                                 case input of
@@ -656,6 +796,9 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
     RenderSlot slot             -> do
                                     p <- currentProgram <$> get
                                     return $ GLRenderSlot slot p
+    RenderStream stream         -> do
+                                    p <- currentProgram <$> get
+                                    return $ GLRenderStream stream p
     ClearRenderTarget vals      -> return $ GLClearRenderTarget vals
     GenerateMipMap tu           -> do
                                     tb <- textureBinding <$> get

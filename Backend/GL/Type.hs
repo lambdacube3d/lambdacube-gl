@@ -149,6 +149,14 @@ data InputConnection
     , icSlotMapInputToPipeline  :: Vector (Maybe SlotName)  -- GLPipelineInput to GLPipeline slot name mapping
     }
 
+data GLStream
+    = GLStream
+    { glStreamCommands    :: IORef [GLObjectCommand]
+    , glStreamPrimitive   :: Primitive
+    , glStreamAttributes  :: Trie (Stream Buffer)
+    , glStreamProgram     :: ProgramName
+    }
+
 data GLPipeline
     = GLPipeline
     { glPrograms        :: Vector GLProgram
@@ -161,6 +169,7 @@ data GLPipeline
     , glSlotNames       :: Vector ByteString
     , glVAO             :: GLuint
     , glTexUnitMapping  :: Trie (IORef GLint)   -- maps texture uniforms to texture units
+    , glStreams         :: Vector GLStream
     }
 
 data GLSampler
@@ -183,6 +192,7 @@ data GLCommand
     | GLSetTexture              !GLenum !GLuint !GLuint
     | GLSetSampler              !GLuint !GLuint
     | GLRenderSlot              !SlotName !ProgramName
+    | GLRenderStream            !StreamName !ProgramName
     | GLClearRenderTarget       [(ImageSemantic,Value)]
     | GLGenerateMipMap          !GLenum !GLenum
     | GLSaveImage               FrameBufferComponent ImageRef                   -- from framebuffer component to texture (image)
