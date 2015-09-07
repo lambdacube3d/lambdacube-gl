@@ -47,6 +47,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Graphics.Rendering.OpenGL.Raw.Core33
+import Linear
 import IR
 import Backend.GL.Type
 

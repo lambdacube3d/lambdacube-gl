@@ -30,6 +30,7 @@ import qualified Data.Vector.Storable.Mutable as MV
 import Backend.GL
 import Backend.GL.Type as T
 import IR as IR
+import Linear as IR
 
 fileVersion :: Int32
 fileVersion = 1

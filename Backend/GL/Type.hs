@@ -14,6 +14,7 @@ import Foreign.Storable
 
 import Graphics.Rendering.OpenGL.Raw.Core33
 
+import Linear
 import IR
 
 ---------------

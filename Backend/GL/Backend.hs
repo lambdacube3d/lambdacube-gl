@@ -26,6 +26,7 @@ import Graphics.Rendering.OpenGL.Raw.Core33
 import Foreign
 
 -- LC IR imports
+import Linear
 import IR hiding (streamType)
 import qualified IR as IR
 

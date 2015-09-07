@@ -22,6 +22,7 @@ import qualified Data.Vector.Algorithms.Intro as I
 import Graphics.Rendering.OpenGL.Raw.Core33
 
 import IR as IR
+import Linear as IR
 import Backend.GL.Type as T
 import Backend.GL.Util
 
