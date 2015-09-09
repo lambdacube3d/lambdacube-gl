@@ -194,7 +194,7 @@ data GLCommand
     | GLSetSampler              !GLuint !GLuint
     | GLRenderSlot              !SlotName !ProgramName
     | GLRenderStream            !StreamName !ProgramName
-    | GLClearRenderTarget       [(ImageSemantic,Value)]
+    | GLClearRenderTarget       [ClearImage]
     | GLGenerateMipMap          !GLenum !GLenum
     | GLSaveImage               FrameBufferComponent ImageRef                   -- from framebuffer component to texture (image)
     | GLLoadImage               ImageRef FrameBufferComponent                   -- from texture (image) to framebuffer component

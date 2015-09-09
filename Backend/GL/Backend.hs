@@ -144,7 +144,7 @@ setupAccumulationContext (AccumulationContext n ops) = cvt ops
                 glDisable   gl_BLEND
                 glEnable    gl_COLOR_LOGIC_OP
                 glLogicOp $ logicOperationToGLType op
-            Blend (cEq,aEq) ((scF,dcF),(saF,daF)) (V4 r g b a) -> do
+            Blend cEq aEq scF dcF saF daF (V4 r g b a) -> do
                 glDisable gl_COLOR_LOGIC_OP
                 -- FIXME: requires GL 3.1
                 --glEnablei gl_BLEND $ fromIntegral gl_DRAW_BUFFER0 + fromIntegral i
@@ -169,17 +169,17 @@ setupAccumulationContext (AccumulationContext n ops) = cvt ops
     cvtBool True  = 1
     cvtBool False = 0
 
-clearRenderTarget :: [(ImageSemantic,Value)] -> IO ()
+clearRenderTarget :: [ClearImage] -> IO ()
 clearRenderTarget values = do
     let setClearValue (m,i) value = case value of
-            (Depth, VFloat v) -> do
+            ClearImage Depth (VFloat v) -> do
                 glDepthMask 1
                 glClearDepth $ realToFrac v
                 return (m .|. gl_DEPTH_BUFFER_BIT, i)
-            (Stencil, VWord v) -> do
+            ClearImage Stencil (VWord v) -> do
                 glClearStencil $ fromIntegral v
                 return (m .|. gl_STENCIL_BUFFER_BIT, i)
-            (Color, c) -> do
+            ClearImage Color c -> do
                 let (r,g,b,a) = case c of
                         VFloat r            -> (realToFrac r, 0, 0, 1)
                         VV2F (V2 r g)       -> (realToFrac r, realToFrac g, 0, 1)
@@ -212,7 +212,7 @@ compileProgram uniTrie p = do
         Nothing -> []
         Just s  -> [createAndAttach s gl_GEOMETRY_SHADER]
 
-    forM_ (zip (programOutput p) [0..]) $ \((pack -> n,t),i) -> SB.useAsCString n $ \pn -> do
+    forM_ (zip (programOutput p) [0..]) $ \(Parameter (pack -> n) t,i) -> SB.useAsCString n $ \pn -> do
         putStrLn ("variable " ++ show n ++ " attached to color number #" ++ show i)
         glBindFragDataLocation po i $ castPtr pn
     putStr "    + setup shader output mapping: " >> printGLStatus
@@ -230,7 +230,7 @@ compileProgram uniTrie p = do
     print uniforms
     print attributes
     let lcUniforms = (toTrie $ programUniforms p) `unionL` (toTrie $ programInTextures p)
-        lcStreams = fmap snd (toTrie $ programStreams p)
+        lcStreams = fmap ty (toTrie $ programStreams p)
         check a m = and $ map go $ T.toList m
           where go (k,b) = case T.lookup k a of
                   Nothing -> True
@@ -250,7 +250,7 @@ compileProgram uniTrie p = do
         , inputUniforms         = T.fromList inUniforms
         , inputTextures         = T.fromList inTextures
         , inputTextureUniforms  = S.fromList $ texUnis
-        , inputStreams          = T.fromList [(n,(idx,pack attrName)) | ((n,idx),(_,(attrName,_))) <- zip (T.toList $ attributes) (T.toList $ toTrie $ programStreams p)]
+        , inputStreams          = T.fromList [(n,(idx, pack attrName)) | ((n,idx),(_,(Parameter attrName _))) <- zip (T.toList $ attributes) (T.toList $ toTrie $ programStreams p)]
         }
 
 compileSampler :: SamplerDescriptor -> IO GLSampler
@@ -284,10 +284,10 @@ compileRenderTarget :: Vector TextureDescriptor -> Vector GLTexture -> RenderTar
 compileRenderTarget texs glTexs (RenderTarget targets) = do
     let isFB (Framebuffer _)    = True
         isFB _                  = False
-        images = [img | (_,Just img) <- targets]
+        images = [img | TargetItem _ (Just img) <- targets]
     case all isFB images of
         True -> do
-            let bufs = [cvt img | (Color,img) <- targets]
+            let bufs = [cvt img | TargetItem Color img <- targets]
                 cvt a = case a of
                     Nothing                     -> gl_NONE
                     Just (Framebuffer Color)    -> gl_BACK_LEFT
@@ -342,17 +342,17 @@ compileRenderTarget texs glTexs (RenderTarget targets) = do
                             | otherwise         -> attach2D
                         TextureBuffer _         -> fail "internalError (compileRenderTarget/TextureBuffer)!"
             
-                go a (Stencil,Just img) = do
+                go a (TargetItem Stencil (Just img)) = do
                     fail "Stencil support is not implemented yet!"
                     return a
-                go a (Depth,Just img) = do
+                go a (TargetItem Depth (Just img)) = do
                     attach gl_DEPTH_ATTACHMENT img
                     return a
-                go (bufs,colorIdx) (Color,Just img) = do
+                go (bufs,colorIdx) (TargetItem Color (Just img)) = do
                     let attachment = gl_COLOR_ATTACHMENT0 + fromIntegral colorIdx
                     attach attachment img
                     return (attachment : bufs, colorIdx + 1)
-                go (bufs,colorIdx) (Color,Nothing) = return (gl_NONE : bufs, colorIdx + 1)
+                go (bufs,colorIdx) (TargetItem Color Nothing) = return (gl_NONE : bufs, colorIdx + 1)
                 go a _ = return a
             (bufs,_) <- foldM go ([],0) targets
             withArray (reverse bufs) $ glDrawBuffers (fromIntegral $ length bufs)
