@@ -20,7 +20,7 @@ import qualified Data.Map as Map
 import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Data.Vector as V
-import qualified Data.Vector.Mutable as MV
+import qualified Data.Vector.Storable as SV
 
 import Graphics.Rendering.OpenGL.Raw.Core33
 import Foreign
@@ -212,7 +212,7 @@ compileProgram uniTrie p = do
         Nothing -> []
         Just s  -> [createAndAttach s gl_GEOMETRY_SHADER]
 
-    forM_ (zip (programOutput p) [0..]) $ \(Parameter (pack -> n) t,i) -> SB.useAsCString n $ \pn -> do
+    forM_ (zip (V.toList $ programOutput p) [0..]) $ \(Parameter (pack -> n) t,i) -> SB.useAsCString n $ \pn -> do
         putStrLn ("variable " ++ show n ++ " attached to color number #" ++ show i)
         glBindFragDataLocation po i $ castPtr pn
     putStr "    + setup shader output mapping: " >> printGLStatus
@@ -284,10 +284,10 @@ compileRenderTarget :: Vector TextureDescriptor -> Vector GLTexture -> RenderTar
 compileRenderTarget texs glTexs (RenderTarget targets) = do
     let isFB (Framebuffer _)    = True
         isFB _                  = False
-        images = [img | TargetItem _ (Just img) <- targets]
+        images = [img | TargetItem _ (Just img) <- V.toList targets]
     case all isFB images of
         True -> do
-            let bufs = [cvt img | TargetItem Color img <- targets]
+            let bufs = [cvt img | TargetItem Color img <- V.toList targets]
                 cvt a = case a of
                     Nothing                     -> gl_NONE
                     Just (Framebuffer Color)    -> gl_BACK_LEFT
@@ -364,17 +364,17 @@ compileRenderTarget texs glTexs (RenderTarget targets) = do
 compileStreamData :: StreamData -> IO GLStream
 compileStreamData s = do
   let withV w a f = w a (\p -> f $ castPtr p)
-  let compileAttr (VFloatArray v) = Array ArrFloat (length v) (withV withArray v)
-      compileAttr (VIntArray v) = Array ArrInt32 (length v) (withV withArray v)
-      compileAttr (VWordArray v) = Array ArrWord32 (length v) (withV withArray v)
+  let compileAttr (VFloatArray v) = Array ArrFloat (V.length v) (withV (SV.unsafeWith . V.convert) v)
+      compileAttr (VIntArray v) = Array ArrInt32 (V.length v) (withV (SV.unsafeWith . V.convert) v)
+      compileAttr (VWordArray v) = Array ArrWord32 (V.length v) (withV (SV.unsafeWith . V.convert) v)
       --TODO: compileAttr (VBoolArray v) = Array ArrWord32 (length v) (withV withArray v)
       (indexMap,arrays) = unzip [((n,i),compileAttr d) | (i,(n,d)) <- zip [0..] $ Map.toList $ streamData s]
       getLength n = l `div` c
         where
           l = case Map.lookup n $ IR.streamData s of
-            Just (VFloatArray v) -> length v
-            Just (VIntArray v) -> length v
-            Just (VWordArray v) -> length v
+            Just (VFloatArray v) -> V.length v
+            Just (VIntArray v) -> V.length v
+            Just (VWordArray v) -> V.length v
             _ -> error "compileStreamData - getLength"
           c = case Map.lookup n $ IR.streamType s of
             Just Bool   -> 1
@@ -421,7 +421,7 @@ compileStreamData s = do
         LinesAdjacency      -> LineListAdjacency
         TrianglesAdjacency  -> TriangleListAdjacency
     , glStreamAttributes  = toTrie $ Map.fromList $ map toStream indexMap
-    , glStreamProgram     = head $ streamPrograms s
+    , glStreamProgram     = V.head $ streamPrograms s
     }
 
 createStreamCommands :: Trie (IORef GLint) -> Trie GLUniform -> Trie (Stream Buffer) -> Primitive -> GLProgram -> [GLObjectCommand]
@@ -488,26 +488,26 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds ++ s
 allocPipeline :: Pipeline -> IO GLPipeline
 allocPipeline p = do
     let uniTrie = uniforms $ schemaFromPipeline p
-    smps <- V.mapM compileSampler $ V.fromList $ samplers p
-    texs <- V.mapM compileTexture $ V.fromList $ textures p
-    trgs <- V.mapM (compileRenderTarget (V.fromList $ textures p) texs) $ V.fromList $ targets p
-    prgs <- V.mapM (compileProgram uniTrie) $ V.fromList $ programs p
+    smps <- V.mapM compileSampler $ samplers p
+    texs <- V.mapM compileTexture $ textures p
+    trgs <- V.mapM (compileRenderTarget (textures p) texs) $ targets p
+    prgs <- V.mapM (compileProgram uniTrie) $ programs p
     -- texture unit mapping ioref trie
-    texUnitMapRefs <- T.fromList <$> mapM (\k -> (k,) <$> newIORef 0) (S.toList $ S.fromList $ concat $ V.toList $ V.map (T.keys . toTrie . programInTextures) $ V.fromList $ programs p)
-    let (cmds,st) = runState (mapM (compileCommand texUnitMapRefs smps texs trgs prgs) $ commands p) initCGState
+    texUnitMapRefs <- T.fromList <$> mapM (\k -> (k,) <$> newIORef 0) (S.toList $ S.fromList $ concat $ V.toList $ V.map (T.keys . toTrie . programInTextures) $ programs p)
+    let (cmds,st) = runState (mapM (compileCommand texUnitMapRefs smps texs trgs prgs) $ V.toList $ commands p) initCGState
     input <- newIORef Nothing
     -- default Vertex Array Object
     vao <- alloca $! \pvao -> glGenVertexArrays 1 pvao >> peek pvao
-    strs <- V.mapM compileStreamData $ V.fromList $ streams p
+    strs <- V.mapM compileStreamData $ streams p
     return $ GLPipeline
         { glPrograms        = prgs
         , glTextures        = texs
         , glSamplers        = smps
         , glTargets         = trgs
         , glCommands        = cmds
-        , glSlotPrograms    = V.map slotPrograms $ V.fromList $ IR.slots p
+        , glSlotPrograms    = V.map (V.toList . slotPrograms) $ IR.slots p
         , glInput           = input
-        , glSlotNames       = V.map (pack . slotName) $ V.fromList $ IR.slots p
+        , glSlotNames       = V.map (pack . slotName) $ IR.slots p
         , glVAO             = vao
         , glTexUnitMapping  = texUnitMapRefs
         , glStreams         = strs
@@ -800,7 +800,7 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
     RenderStream stream         -> do
                                     p <- currentProgram <$> get
                                     return $ GLRenderStream stream p
-    ClearRenderTarget vals      -> return $ GLClearRenderTarget vals
+    ClearRenderTarget vals      -> return $ GLClearRenderTarget $ V.toList vals
     GenerateMipMap tu           -> do
                                     tb <- textureBinding <$> get
                                     case IM.lookup tu tb of
