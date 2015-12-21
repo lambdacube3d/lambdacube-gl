@@ -85,7 +85,7 @@ addObject input slotName prim indices attribs uniformNames = do
                 ]
                 
     let slotIdx = case slotName `T.lookup` slotMap input of
-            Nothing -> error "internal error (slot index)"
+            Nothing -> error $ "internal error (slot index): " ++ show slotName
             Just i  -> i
         seed = objSeed input
     order <- newIORef 0
@@ -194,13 +194,13 @@ createObjectCommands texUnitMap topUnis obj prg = objUniCmds ++ objStreamCmds ++
       where
         uniCmds = [GLSetUniform i u | (n,i) <- uniMap, let u = T.lookupWithDefault (topUni n) n objUnis]
         uniMap  = T.toList $ inputUniforms prg
-        topUni n = T.lookupWithDefault (error "internal error (createObjectCommands)!") n topUnis
+        topUni n = T.lookupWithDefault (error $ "internal error (createObjectCommands): " ++ show n) n topUnis
         objUnis = objUniSetup obj
         texUnis = S.toList $ inputTextureUniforms prg
         texCmds = [ GLBindTexture (inputTypeToTextureTarget $ uniInputType u) texUnit u
                   | n <- texUnis
                   , let u = T.lookupWithDefault (topUni n) n objUnis
-                  , let texUnit = T.lookupWithDefault (error "internal error (createObjectCommands - Texture Unit)") n texUnitMap
+                  , let texUnit = T.lookupWithDefault (error $ "internal error (createObjectCommands - Texture Unit): " ++ show n) n texUnitMap
                   ]
         uniInputType (GLUniform ty _) = ty
 
@@ -243,7 +243,8 @@ createObjectCommands texUnitMap topUnis obj prg = objUniCmds ++ objStreamCmds ++
             constAttr -> GLSetVertexAttrib i constAttr
 
 nullSetter :: ByteString -> String -> a -> IO ()
-nullSetter n t _ = return () -- Prelude.putStrLn $ "WARNING: unknown uniform: " ++ SB.unpack n ++ " :: " ++ t
+--nullSetter n t _ = return () -- Prelude.putStrLn $ "WARNING: unknown uniform: " ++ SB.unpack n ++ " :: " ++ t
+nullSetter n t _ = Prelude.putStrLn $ "WARNING: unknown uniform: " ++ SB.unpack n ++ " :: " ++ t
 
 uniformBool  :: ByteString -> Trie InputSetter -> SetterFun Bool
 uniformV2B   :: ByteString -> Trie InputSetter -> SetterFun V2B

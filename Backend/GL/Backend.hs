@@ -233,7 +233,7 @@ compileProgram uniTrie p = do
         lcStreams = fmap ty (toTrie $ programStreams p)
         check a m = and $ map go $ T.toList m
           where go (k,b) = case T.lookup k a of
-                  Nothing -> True
+                  Nothing -> False
                   Just x -> x == b
     unless (check lcUniforms uniformsType) $ do
       putStrLn $ "expected: " ++ show lcUniforms
