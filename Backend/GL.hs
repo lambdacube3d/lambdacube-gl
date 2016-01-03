@@ -23,6 +23,7 @@ module Backend.GL (
     arraySize,
     arrayType,
     compileTexture2DRGBAF,
+    compileTexture2DRGBAF',
 
     -- GL Pipeline Input, Object
     GLPipeline,

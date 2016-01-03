@@ -133,7 +133,8 @@ setUniform i ty ref = do
         M42F        -> glUniformMatrix4x2fv i 1 false (castPtr p)
         M43F        -> glUniformMatrix4x3fv i 1 false (castPtr p)
         M44F        -> glUniformMatrix4fv   i 1 false (castPtr p)
-        _   -> fail "internal error (setUniform)!"
+        FTexture2D  -> return () --putStrLn $ "TODO: setUniform FTexture2D"
+        _   -> fail $ "internal error (setUniform)! - " ++ show ty
 
 -- attribute functions
 queryStreams :: GLuint -> IO (Trie GLuint, Trie InputType)

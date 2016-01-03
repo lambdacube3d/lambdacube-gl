@@ -14,7 +14,7 @@ import Text.Show.Pretty hiding (Float)
 import Backend.GL as GL
 import Backend.GL.Mesh
 import IR as IR
-import Linear as IR
+import "lambdacube-ir" Linear as IR
 
 import System.Environment
 

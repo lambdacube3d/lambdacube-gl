@@ -19,7 +19,7 @@ import qualified Data.Vector.Storable as SV
 import Graphics.Rendering.OpenGL.Raw.Core33
 import Data.Word
 import Codec.Picture
-import Codec.Picture.RGBA8
+import Codec.Picture.Types
 
 import Backend.GL.Type
 import Backend.GL.Util
@@ -60,8 +60,26 @@ arrayType buf arrIdx = arrType $! bufArrays buf V.! arrIdx
 
 -- FIXME: Temporary implemenation
 compileTexture2DRGBAF :: Bool -> Bool -> DynamicImage -> IO TextureData
-compileTexture2DRGBAF isMip isClamped bitmap' = do
-    let bitmap = ImageRGBA8 $ fromDynamicImage bitmap'
+compileTexture2DRGBAF = compileTexture2DRGBAF' False
+
+compileTexture2DRGBAF' :: Bool -> Bool -> Bool -> DynamicImage -> IO TextureData
+compileTexture2DRGBAF' isSRGB isMip isClamped bitmap' = do
+    let bitmap = case bitmap' of
+          ImageRGB8 i@(Image w h _)   -> bitmap' -- pixelFoldMap (\(PixelRGB8 r g b) -> [PixelRGBA8 r g b maxBound]) i
+          ImageRGBA8 i@(Image w h _)  -> bitmap' -- pixelFoldMap (\(PixelRGBA8 r g b a) -> [PixelRGBA8 r g b a]) i
+          ImageYCbCr8 i@(Image w h _) -> ImageRGB8 $ convertImage i -- $ Image w h $ SV.fromList $ pixelFoldMap (\p -> let PixelRGB8 r g b = convertPixel p in [PixelRGBA8 r g b maxBound]) i
+          ImageCMYK16 _   -> error "compileTexture2DRGBAF: ImageCMYK16"
+          ImageCMYK8 _    -> error "compileTexture2DRGBAF: ImageCMYK8"
+          ImageRGBA16 _   -> error "compileTexture2DRGBAF: ImageRGBA16"
+          ImageRGBF _     -> error "compileTexture2DRGBAF: ImageRGBF"
+          ImageRGB16 _    -> error "compileTexture2DRGBAF: ImageRGB16"
+          ImageYA16 _     -> error "compileTexture2DRGBAF: ImageYA16"
+          ImageYA8 _      -> error "compileTexture2DRGBAF: ImageYA8"
+          ImageYF _       -> error "compileTexture2DRGBAF: ImageYF"
+          ImageY16 _      -> error "compileTexture2DRGBAF: ImageY16"
+          ImageY8 _       -> error "compileTexture2DRGBAF: ImageY8"
+          _ -> error "compileTexture2DRGBAF: unknown image"
+
     glPixelStorei gl_UNPACK_ALIGNMENT 1
     to <- alloca $! \pto -> glGenTextures 1 pto >> peek pto
     glBindTexture gl_TEXTURE_2D to
@@ -85,7 +103,7 @@ compileTexture2DRGBAF isMip isClamped bitmap' = do
     glTexParameteri gl_TEXTURE_2D gl_TEXTURE_BASE_LEVEL 0
     glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAX_LEVEL $ fromIntegral maxLevel
     withBitmap bitmap $ \(w,h) nchn 0 ptr -> do
-        let internalFormat  = fromIntegral gl_RGBA8
+        let internalFormat  = fromIntegral $ if isSRGB then (if nchn == 3 then gl_SRGB8 else gl_SRGB8_ALPHA8) else (if nchn == 3 then gl_RGB8 else gl_RGBA8)
             dataFormat      = fromIntegral $ case nchn of
                 3   -> gl_RGB
                 4   -> gl_RGBA

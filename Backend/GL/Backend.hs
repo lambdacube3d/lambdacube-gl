@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections, MonadComprehensions, ViewPatterns #-}
+{-# LANGUAGE TupleSections, MonadComprehensions, ViewPatterns, RecordWildCards #-}
 module Backend.GL.Backend where
 
 import Control.Applicative
@@ -9,6 +9,7 @@ import Data.ByteString.Char8 (ByteString,pack)
 import Data.IORef
 import Data.IntMap (IntMap)
 import Data.Maybe (isNothing,fromJust)
+import Data.Map (Map)
 import Data.Set (Set)
 import Data.Trie as T
 import Data.Trie.Convenience as T
@@ -242,15 +243,29 @@ compileProgram uniTrie p = do
     unless (check lcStreams attributesType) $ fail $ "shader program stream input mismatch! " ++ show (attributesType,lcStreams)
     -- the public (user) pipeline and program input is encoded by the slots, therefore the programs does not distinct the render and slot textures input
     let inUniNames = toTrie $ programUniforms p
-        (inUniforms,inTextures) = L.partition (\(n,v) -> T.member n inUniNames) $ T.toList $ uniforms
+        inUniforms = L.filter (\(n,v) -> T.member n inUniNames) $ T.toList $ uniforms
+        inTextureNames = toTrie $ programInTextures p
+        inTextures = L.filter (\(n,v) -> T.member n inTextureNames) $ T.toList $ uniforms
         texUnis = [n | (n,_) <- inTextures, T.member n uniTrie]
+    putStrLn $ "uniTrie: " ++ show (T.keys uniTrie)
+    putStrLn $ "inUniNames: " ++ show inUniNames
+    putStrLn $ "inUniforms: " ++ show inUniforms
+    putStrLn $ "inTextureNames: " ++ show inTextureNames
+    putStrLn $ "inTextures: " ++ show inTextures
+    putStrLn $ "texUnis: " ++ show texUnis
+    let valA = T.toList $ attributes
+        valB = T.toList $ toTrie $ programStreams p
+    putStrLn "------------"
+    print $ T.toList $ attributes
+    print $ T.toList $ toTrie $ programStreams p
+    let lcStreamName = fmap name (toTrie $ programStreams p)
     return $ GLProgram
         { shaderObjects         = objs
         , programObject         = po
         , inputUniforms         = T.fromList inUniforms
         , inputTextures         = T.fromList inTextures
         , inputTextureUniforms  = S.fromList $ texUnis
-        , inputStreams          = T.fromList [(n,(idx, pack attrName)) | ((n,idx),(_,(Parameter attrName _))) <- zip (T.toList $ attributes) (T.toList $ toTrie $ programStreams p)]
+        , inputStreams          = T.fromList [(n,(idx, pack attrName)) | (n,idx) <- T.toList $ attributes, let Just attrName = T.lookup n lcStreamName]
         }
 
 compileSampler :: SamplerDescriptor -> IO GLSampler
@@ -493,6 +508,7 @@ allocPipeline p = do
     trgs <- V.mapM (compileRenderTarget (textures p) texs) $ targets p
     prgs <- V.mapM (compileProgram uniTrie) $ programs p
     -- texture unit mapping ioref trie
+    -- texUnitMapRefs :: Map UniformName (IORef TextureUnit)
     texUnitMapRefs <- T.fromList <$> mapM (\k -> (k,) <$> newIORef 0) (S.toList $ S.fromList $ concat $ V.toList $ V.map (T.keys . toTrie . programInTextures) $ programs p)
     let (cmds,st) = runState (mapM (compileCommand texUnitMapRefs smps texs trgs prgs) $ V.toList $ commands p) initCGState
     input <- newIORef Nothing
@@ -702,11 +718,12 @@ renderSlot cmds = forM_ cmds $ \cmd -> do
                                                                 texUnit <- readIORef tuRef
                                                                 glActiveTexture $ gl_TEXTURE0 + fromIntegral texUnit
                                                                 glBindTexture txTarget txObj
+                                                                putStrLn $ "to texture unit " ++ show texUnit ++ " texture object " ++ show txObj
         GLSetVertexAttrib idx val                       -> do
                                                             glDisableVertexAttribArray idx
                                                             setVertexAttrib idx val
-    --isOk <- checkGL
-    --putStrLn $ SB.unpack isOk ++ " - " ++ show cmd
+    isOk <- checkGL
+    putStrLn $ SB.unpack isOk ++ " - " ++ show cmd
 
 renderPipeline :: GLPipeline -> IO ()
 renderPipeline glp = do
@@ -755,18 +772,20 @@ renderPipeline glp = do
             GLSaveImage
             GLLoadImage
             -}
-        --isOk <- checkGL
-        --putStrLn $ SB.unpack isOk ++ " - " ++ show cmd
+        isOk <- checkGL
+        putStrLn $ SB.unpack isOk ++ " - " ++ show cmd
 
 data CGState
     = CGState
     { currentProgram    :: ProgramName
     , textureBinding    :: IntMap GLTexture
+    , samplerUniforms   :: Map UniformName TextureUnit
     }
 
 initCGState = CGState
     { currentProgram    = error "CGState: empty currentProgram"
     , textureBinding    = IM.empty
+    , samplerUniforms   = mempty
     }
 
 type CG a = State CGState a
@@ -780,11 +799,12 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
                                     modify (\s -> s {currentProgram = p})
                                     return $ GLSetProgram $ programObject $ programs ! p
     SetSamplerUniform n tu      -> do
+                                    modify (\s@CGState{..} -> s {samplerUniforms = Map.insert n tu samplerUniforms})
                                     p <- currentProgram <$> get
                                     case T.lookup (pack n) (inputTextures $ programs ! p) of
-                                        Nothing -> fail "internal error (SetSamplerUniform)!"
+                                        Nothing -> fail $ "internal error (SetSamplerUniform)! - " ++ show cmd
                                         Just i  -> case T.lookup (pack n) texUnitMap of
-                                            Nothing -> fail "internal error (SetSamplerUniform - IORef)!"
+                                            Nothing -> fail $ "internal error (SetSamplerUniform - IORef)! - " ++ show cmd
                                             Just r  -> return $ GLSetSamplerUniform i (fromIntegral tu) r
     SetTexture tu t             -> do
                                     let tex = textures ! t
@@ -795,6 +815,7 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
                                         glBindSampler (fromIntegral tu) (samplerObject $ glSamplers glp ! s)
 -}
     RenderSlot slot             -> do
+                                    smpUnis <- samplerUniforms <$> get
                                     p <- currentProgram <$> get
                                     return $ GLRenderSlot slot p
     RenderStream stream         -> do
