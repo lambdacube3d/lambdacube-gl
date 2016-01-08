@@ -1,10 +1,10 @@
 {-# LANGUAGE TupleSections #-}
-module Backend.GL.Mesh (
+module LambdaCube.GL.Mesh (
     loadMesh',
     loadMesh,
     saveMesh,
-    addMesh,
-    compileMesh,
+    addMeshToObjectArray,
+    uploadMeshToGPU,
     updateMesh,
     Mesh(..),
     MeshPrimitive(..),
@@ -27,8 +27,8 @@ import qualified Data.Trie as T
 import qualified Data.Vector.Storable as V
 import qualified Data.Vector.Storable.Mutable as MV
 
-import Backend.GL
-import Backend.GL.Type as T
+import LambdaCube.GL
+import LambdaCube.GL.Type as T
 import IR as IR
 import Linear as IR
 
@@ -71,20 +71,20 @@ loadMesh' :: String -> IO Mesh
 loadMesh' n = decode <$> LB.readFile n
 
 loadMesh :: String -> IO Mesh
-loadMesh n = compileMesh =<< loadMesh' n
+loadMesh n = uploadMeshToGPU =<< loadMesh' n
 
 saveMesh :: String -> Mesh -> IO ()
 saveMesh n m = LB.writeFile n (encode m)
 
-addMesh :: GLPipelineInput -> ByteString -> Mesh -> [ByteString] -> IO Object
-addMesh input slotName (Mesh _ _ (Just (GPUData prim streams indices))) objUniNames = do
+addMeshToObjectArray :: GLStorage -> ByteString -> [ByteString] -> Mesh -> IO Object
+addMeshToObjectArray input slotName objUniNames (Mesh _ _ (Just (GPUData prim streams indices))) = do
     -- select proper attributes
     let Just (SlotSchema slotPrim slotStreams) = T.lookup slotName $! T.slots $! T.schema input
         filterStream n s
             | T.member n slotStreams = Just s
             | otherwise = Nothing
     addObject input slotName prim indices (T.mapBy filterStream streams) objUniNames
-addMesh _ _ _ _ = fail "addMesh: only compiled mesh with GPUData is supported"
+addMeshToObjectArray _ _ _ _ = fail "addMeshToObjectArray: only compiled mesh with GPUData is supported"
 
 withV w a f = w a (\p -> f $ castPtr p)
 
@@ -100,36 +100,16 @@ meshAttrToArray (A_Int   v) = Array ArrInt32  (1 *  V.length v) $ withV V.unsafe
 meshAttrToArray (A_Word  v) = Array ArrWord32 (1 *  V.length v) $ withV V.unsafeWith v
 
 meshAttrToStream :: Buffer -> Int -> MeshAttribute -> Stream Buffer
-meshAttrToStream b i (A_Float v) = Stream TFloat b i 0 (V.length v)
-meshAttrToStream b i (A_V2F   v) = Stream TV2F b i 0 (V.length v)
-meshAttrToStream b i (A_V3F   v) = Stream TV3F b i 0 (V.length v)
-meshAttrToStream b i (A_V4F   v) = Stream TV4F b i 0 (V.length v)
-meshAttrToStream b i (A_M22F  v) = Stream TM22F b i 0 (V.length v)
-meshAttrToStream b i (A_M33F  v) = Stream TM33F b i 0 (V.length v)
-meshAttrToStream b i (A_M44F  v) = Stream TM44F b i 0 (V.length v)
-meshAttrToStream b i (A_Int   v) = Stream TInt b i 0 (V.length v)
-meshAttrToStream b i (A_Word  v) = Stream TWord b i 0 (V.length v)
+meshAttrToStream b i (A_Float v) = Stream Attribute_Float b i 0 (V.length v)
+meshAttrToStream b i (A_V2F   v) = Stream Attribute_V2F b i 0 (V.length v)
+meshAttrToStream b i (A_V3F   v) = Stream Attribute_V3F b i 0 (V.length v)
+meshAttrToStream b i (A_V4F   v) = Stream Attribute_V4F b i 0 (V.length v)
+meshAttrToStream b i (A_M22F  v) = Stream Attribute_M22F b i 0 (V.length v)
+meshAttrToStream b i (A_M33F  v) = Stream Attribute_M33F b i 0 (V.length v)
+meshAttrToStream b i (A_M44F  v) = Stream Attribute_M44F b i 0 (V.length v)
+meshAttrToStream b i (A_Int   v) = Stream Attribute_Int b i 0 (V.length v)
+meshAttrToStream b i (A_Word  v) = Stream Attribute_Word b i 0 (V.length v)
 
-{-
-updateBuffer :: Buffer -> [(Int,Array)] -> IO ()
-
-    | Stream 
-        { streamType    :: StreamType
-        , streamBuffer  :: b
-        , streamArrIdx  :: Int
-        , streamStart   :: Int
-        , streamLength  :: Int
-        }
-
--- stream of index values (for index buffer)
-data IndexStream b
-    = IndexStream
-    { indexBuffer   :: b
-    , indexArrIdx   :: Int
-    , indexStart    :: Int
-    , indexLength   :: Int
-    }
--}
 updateMesh :: Mesh -> [(ByteString,MeshAttribute)] -> Maybe MeshPrimitive -> IO ()
 updateMesh (Mesh dMA dMP (Just (GPUData _ dS dI))) al mp = do
   -- check type match
@@ -151,8 +131,8 @@ updateMesh (Mesh dMA dMP (Just (GPUData _ dS dI))) al mp = do
                 (a,b) -> a == b
 -}
 
-compileMesh :: Mesh -> IO Mesh
-compileMesh (Mesh attrs mPrim Nothing) = do
+uploadMeshToGPU :: Mesh -> IO Mesh
+uploadMeshToGPU (Mesh attrs mPrim Nothing) = do
     let mkIndexBuf v = do
             iBuf <- compileBuffer [Array ArrWord32 (V.length v) $ withV V.unsafeWith v]
             return $! Just $! IndexStream iBuf 0 0 (V.length v)
@@ -167,7 +147,7 @@ compileMesh (Mesh attrs mPrim Nothing) = do
         gpuData = GPUData prim streams indices
     return $! Mesh attrs mPrim (Just gpuData)
 
-compileMesh mesh = return mesh
+uploadMeshToGPU mesh = return mesh
 
 sblToV :: Storable a => [SB.ByteString] -> V.Vector a
 sblToV ls = v

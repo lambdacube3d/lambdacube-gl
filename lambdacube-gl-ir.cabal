@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                lambdacube-gl-ir
-version:             0.1.0.0
+version:             0.2.0.0
 -- synopsis:            
 -- description:         
 homepage:            lambdacube3d.com
@@ -20,13 +20,13 @@ library
   exposed-modules:
     --SampleIR
     -- Backend
-    Backend.GL
-    Backend.GL.Backend
-    Backend.GL.Data
-    Backend.GL.Input
-    Backend.GL.Mesh
-    Backend.GL.Type
-    Backend.GL.Util
+    LambdaCube.GL
+    LambdaCube.GL.Backend
+    LambdaCube.GL.Data
+    LambdaCube.GL.Input
+    LambdaCube.GL.Mesh
+    LambdaCube.GL.Type
+    LambdaCube.GL.Util
   -- other-modules:
   other-extensions:
     LambdaCase
@@ -54,15 +54,14 @@ library
     bytestring >=0.10 && <0.11, 
     vector >=0.11 && <0.12, 
     bytestring-trie >=0.2 && <0.3, 
-    OpenGLRaw >=2.5 && <2.6, 
-    JuicyPixels >=3.2.6.2 && <3.3,
     vector-algorithms >=0.7 && <0.8, 
     binary >=0.7 && <0.8,
-    GLFW-b >= 1.4.7,
     vect >= 0.4.7,
+    JuicyPixels >=3.2.6.4 && <3.3,
+    OpenGLRaw >=3.0 && <3.1, 
     pretty-show >=1.6 && <1.7, 
     lambdacube-ir
-  hs-source-dirs:      .
+  hs-source-dirs:      src
   default-language:    Haskell2010
 
 --executable sampleIR

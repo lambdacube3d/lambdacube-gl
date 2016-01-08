@@ -1,5 +1,5 @@
 {-# LANGUAGE TupleSections, MonadComprehensions, ViewPatterns, RecordWildCards #-}
-module Backend.GL.Backend where
+module LambdaCube.GL.Backend where
 
 import Control.Applicative
 import Control.Monad
@@ -23,7 +23,7 @@ import qualified Data.Set as S
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 
-import Graphics.Rendering.OpenGL.Raw.Core33
+import Graphics.GL.Core33
 import Foreign
 
 -- LC IR imports
@@ -31,38 +31,38 @@ import Linear
 import IR hiding (streamType)
 import qualified IR as IR
 
-import Backend.GL.Type
-import Backend.GL.Util
+import LambdaCube.GL.Type
+import LambdaCube.GL.Util
 
-import Backend.GL.Data
-import Backend.GL.Input
+import LambdaCube.GL.Data
+import LambdaCube.GL.Input
 
 setupRasterContext :: RasterContext -> IO ()
 setupRasterContext = cvt
   where
     cff :: FrontFace -> GLenum
-    cff CCW = gl_CCW
-    cff CW  = gl_CW
+    cff CCW = GL_CCW
+    cff CW  = GL_CW
 
     setProvokingVertex :: ProvokingVertex -> IO ()
     setProvokingVertex pv = glProvokingVertex $ case pv of
-        FirstVertex -> gl_FIRST_VERTEX_CONVENTION
-        LastVertex  -> gl_LAST_VERTEX_CONVENTION
+        FirstVertex -> GL_FIRST_VERTEX_CONVENTION
+        LastVertex  -> GL_LAST_VERTEX_CONVENTION
 
     setPointSize :: PointSize -> IO ()
     setPointSize ps = case ps of
-        ProgramPointSize    -> glEnable gl_PROGRAM_POINT_SIZE
+        ProgramPointSize    -> glEnable GL_PROGRAM_POINT_SIZE
         PointSize s         -> do
-            glDisable gl_PROGRAM_POINT_SIZE
+            glDisable GL_PROGRAM_POINT_SIZE
             glPointSize $ realToFrac s
 
     cvt :: RasterContext -> IO ()
     cvt (PointCtx ps fts sc) = do
         setPointSize ps
-        glPointParameterf gl_POINT_FADE_THRESHOLD_SIZE (realToFrac fts)
-        glPointParameterf gl_POINT_SPRITE_COORD_ORIGIN $ realToFrac $ case sc of
-            LowerLeft   -> gl_LOWER_LEFT
-            UpperLeft   -> gl_UPPER_LEFT
+        glPointParameterf GL_POINT_FADE_THRESHOLD_SIZE (realToFrac fts)
+        glPointParameterf GL_POINT_SPRITE_COORD_ORIGIN $ realToFrac $ case sc of
+            LowerLeft   -> GL_LOWER_LEFT
+            UpperLeft   -> GL_UPPER_LEFT
 
     cvt (LineCtx lw pv) = do
         glLineWidth (realToFrac lw)
@@ -71,38 +71,38 @@ setupRasterContext = cvt
     cvt (TriangleCtx cm pm po pv) = do
         -- cull mode
         case cm of
-            CullNone    -> glDisable gl_CULL_FACE
+            CullNone    -> glDisable GL_CULL_FACE
             CullFront f -> do
-                glEnable    gl_CULL_FACE
-                glCullFace  gl_FRONT
+                glEnable    GL_CULL_FACE
+                glCullFace  GL_FRONT
                 glFrontFace $ cff f
             CullBack f -> do
-                glEnable    gl_CULL_FACE
-                glCullFace  gl_BACK
+                glEnable    GL_CULL_FACE
+                glCullFace  GL_BACK
                 glFrontFace $ cff f
 
         -- polygon mode
         case pm of
             PolygonPoint ps -> do
                 setPointSize ps
-                glPolygonMode gl_FRONT_AND_BACK gl_POINT
+                glPolygonMode GL_FRONT_AND_BACK GL_POINT
             PolygonLine lw  -> do
                 glLineWidth (realToFrac lw)
-                glPolygonMode gl_FRONT_AND_BACK gl_LINE
-            PolygonFill  -> glPolygonMode gl_FRONT_AND_BACK gl_FILL
+                glPolygonMode GL_FRONT_AND_BACK GL_LINE
+            PolygonFill  -> glPolygonMode GL_FRONT_AND_BACK GL_FILL
 
         -- polygon offset
-        glDisable gl_POLYGON_OFFSET_POINT
-        glDisable gl_POLYGON_OFFSET_LINE
-        glDisable gl_POLYGON_OFFSET_FILL
+        glDisable GL_POLYGON_OFFSET_POINT
+        glDisable GL_POLYGON_OFFSET_LINE
+        glDisable GL_POLYGON_OFFSET_FILL
         case po of
             NoOffset -> return ()
             Offset f u -> do
                 glPolygonOffset (realToFrac f) (realToFrac u)
                 glEnable $ case pm of
-                    PolygonPoint _  -> gl_POLYGON_OFFSET_POINT
-                    PolygonLine  _  -> gl_POLYGON_OFFSET_LINE
-                    PolygonFill     -> gl_POLYGON_OFFSET_FILL
+                    PolygonPoint _  -> GL_POLYGON_OFFSET_POINT
+                    PolygonLine  _  -> GL_POLYGON_OFFSET_LINE
+                    PolygonFill     -> GL_POLYGON_OFFSET_FILL
 
         -- provoking vertex
         setProvokingVertex pv
@@ -119,17 +119,17 @@ setupAccumulationContext (AccumulationContext n ops) = cvt ops
         cvtC 0 xs
     cvt (DepthOp df dm : xs) = do
         -- TODO
-        glDisable gl_STENCIL_TEST
+        glDisable GL_STENCIL_TEST
         case df == Always && dm == False of
-            True    -> glDisable gl_DEPTH_TEST
+            True    -> glDisable GL_DEPTH_TEST
             False   -> do
-                glEnable gl_DEPTH_TEST
+                glEnable GL_DEPTH_TEST
                 glDepthFunc $! comparisonFunctionToGLType df
                 glDepthMask (cvtBool dm)
         cvtC 0 xs
     cvt xs = do 
-        glDisable gl_DEPTH_TEST
-        glDisable gl_STENCIL_TEST
+        glDisable GL_DEPTH_TEST
+        glDisable GL_STENCIL_TEST
         cvtC 0 xs
 
     cvtC :: Int -> [FragmentOperation] -> IO ()
@@ -138,18 +138,18 @@ setupAccumulationContext (AccumulationContext n ops) = cvt ops
         case b of
             NoBlending -> do
                 -- FIXME: requires GL 3.1
-                --glDisablei gl_BLEND $ fromIntegral gl_DRAW_BUFFER0 + fromIntegral i
-                glDisable gl_BLEND -- workaround
-                glDisable gl_COLOR_LOGIC_OP
+                --glDisablei GL_BLEND $ fromIntegral GL_DRAW_BUFFER0 + fromIntegral i
+                glDisable GL_BLEND -- workaround
+                glDisable GL_COLOR_LOGIC_OP
             BlendLogicOp op -> do
-                glDisable   gl_BLEND
-                glEnable    gl_COLOR_LOGIC_OP
+                glDisable   GL_BLEND
+                glEnable    GL_COLOR_LOGIC_OP
                 glLogicOp $ logicOperationToGLType op
             Blend cEq aEq scF dcF saF daF (V4 r g b a) -> do
-                glDisable gl_COLOR_LOGIC_OP
+                glDisable GL_COLOR_LOGIC_OP
                 -- FIXME: requires GL 3.1
-                --glEnablei gl_BLEND $ fromIntegral gl_DRAW_BUFFER0 + fromIntegral i
-                glEnable gl_BLEND -- workaround
+                --glEnablei GL_BLEND $ fromIntegral GL_DRAW_BUFFER0 + fromIntegral i
+                glEnable GL_BLEND -- workaround
                 glBlendEquationSeparate (blendEquationToGLType cEq) (blendEquationToGLType aEq)
                 glBlendFuncSeparate (blendingFactorToGLType scF) (blendingFactorToGLType dcF)
                                     (blendingFactorToGLType saF) (blendingFactorToGLType daF)
@@ -176,10 +176,10 @@ clearRenderTarget values = do
             ClearImage Depth (VFloat v) -> do
                 glDepthMask 1
                 glClearDepth $ realToFrac v
-                return (m .|. gl_DEPTH_BUFFER_BIT, i)
+                return (m .|. GL_DEPTH_BUFFER_BIT, i)
             ClearImage Stencil (VWord v) -> do
                 glClearStencil $ fromIntegral v
-                return (m .|. gl_STENCIL_BUFFER_BIT, i)
+                return (m .|. GL_STENCIL_BUFFER_BIT, i)
             ClearImage Color c -> do
                 let (r,g,b,a) = case c of
                         VFloat r            -> (realToFrac r, 0, 0, 1)
@@ -189,7 +189,7 @@ clearRenderTarget values = do
                         _                   -> (0,0,0,1)
                 glColorMask 1 1 1 1
                 glClearColor r g b a
-                return (m .|. gl_COLOR_BUFFER_BIT, i+1)
+                return (m .|. GL_COLOR_BUFFER_BIT, i+1)
             _ -> error "internal error (clearRenderTarget)"
     (mask,_) <- foldM setClearValue (0,0) values
     glClear $ fromIntegral mask
@@ -209,9 +209,9 @@ compileProgram uniTrie p = do
             putStr "    + compile shader source: " >> printGLStatus
             return o
 
-    objs <- sequence $ createAndAttach (vertexShader p) gl_VERTEX_SHADER : createAndAttach (fragmentShader p) gl_FRAGMENT_SHADER : case geometryShader p of
+    objs <- sequence $ createAndAttach (vertexShader p) GL_VERTEX_SHADER : createAndAttach (fragmentShader p) GL_FRAGMENT_SHADER : case geometryShader p of
         Nothing -> []
-        Just s  -> [createAndAttach s gl_GEOMETRY_SHADER]
+        Just s  -> [createAndAttach s GL_GEOMETRY_SHADER]
 
     forM_ (zip (V.toList $ programOutput p) [0..]) $ \(Parameter (pack -> n) t,i) -> SB.useAsCString n $ \pn -> do
         putStrLn ("variable " ++ show n ++ " attached to color number #" ++ show i)
@@ -222,8 +222,8 @@ compileProgram uniTrie p = do
     printProgramLog po
 
     -- check link status
-    status <- glGetProgramiv1 gl_LINK_STATUS po
-    when (status /= fromIntegral gl_TRUE) $ fail "link program failed!"
+    status <- glGetProgramiv1 GL_LINK_STATUS po
+    when (status /= fromIntegral GL_TRUE) $ fail "link program failed!"
 
     -- check program input
     (uniforms,uniformsType) <- queryUniforms po
@@ -269,32 +269,8 @@ compileProgram uniTrie p = do
         }
 
 compileSampler :: SamplerDescriptor -> IO GLSampler
-compileSampler s = return $ GLSampler {}
+compileSampler s = return $ GLSampler {} -- TODO
 
-{-
-data ImageIndex
-    = TextureImage  TextureName Int (Maybe Int)  -- Texture name, mip index, array index
-    | Framebuffer   ImageSemantic
-
-data ImageSemantic
-    = Depth
-    | Stencil
-    | Color
--}
-{-
-    = RenderTarget
-    { renderTargets :: [(ImageSemantic,Maybe ImageIndex)]   -- render texture or default framebuffer (semantic, render texture for the program output)
-    }
--}
-{-
-  glDrawBuffers
-    GL_NONE
-    --GL_FRONT_LEFT
-    --GL_FRONT_RIGHT
-    GL_BACK_LEFT
-    --GL_BACK_RIGHT
-    GL_COLOR_ATTACHMENTn
--}
 compileRenderTarget :: Vector TextureDescriptor -> Vector GLTexture -> RenderTarget -> IO GLRenderTarget
 compileRenderTarget texs glTexs (RenderTarget targets) = do
     let isFB (Framebuffer _)    = True
@@ -304,8 +280,8 @@ compileRenderTarget texs glTexs (RenderTarget targets) = do
         True -> do
             let bufs = [cvt img | TargetItem Color img <- V.toList targets]
                 cvt a = case a of
-                    Nothing                     -> gl_NONE
-                    Just (Framebuffer Color)    -> gl_BACK_LEFT
+                    Nothing                     -> GL_NONE
+                    Just (Framebuffer Color)    -> GL_BACK_LEFT
                     _                           -> error "internal error (compileRenderTarget)!"
             return $ GLRenderTarget
                 { framebufferObject         = 0
@@ -314,7 +290,7 @@ compileRenderTarget texs glTexs (RenderTarget targets) = do
         False -> do
             when (any isFB images) $ fail "internal error (compileRenderTarget)!"
             fbo <- alloca $! \pbo -> glGenFramebuffers 1 pbo >> peek pbo
-            glBindFramebuffer gl_DRAW_FRAMEBUFFER fbo
+            glBindFramebuffer GL_DRAW_FRAMEBUFFER fbo
             {-
                 void glFramebufferTexture1D(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
                     GL_TEXTURE_1D
@@ -333,19 +309,19 @@ compileRenderTarget texs glTexs (RenderTarget targets) = do
                 void glFramebufferTexture(GLenum target, GLenum attachment, GLuint texture, GLint level);
             -}
             let attach attachment (TextureImage texIdx level (Just layer)) =
-                    glFramebufferTextureLayer gl_DRAW_FRAMEBUFFER attachment (glTextureTarget $ glTexs ! texIdx) (fromIntegral level) (fromIntegral layer)
+                    glFramebufferTextureLayer GL_DRAW_FRAMEBUFFER attachment (glTextureTarget $ glTexs ! texIdx) (fromIntegral level) (fromIntegral layer)
                 attach attachment (TextureImage texIdx level Nothing) = do
                     let glTex = glTexs ! texIdx
                         tex = texs ! texIdx
                         txLevel = fromIntegral level
                         txTarget = glTextureTarget glTex
                         txObj = glTextureObject glTex
-                        attachArray = glFramebufferTexture gl_DRAW_FRAMEBUFFER attachment txObj txLevel
-                        attach2D    = glFramebufferTexture2D gl_DRAW_FRAMEBUFFER attachment txTarget txObj txLevel
+                        attachArray = glFramebufferTexture GL_DRAW_FRAMEBUFFER attachment txObj txLevel
+                        attach2D    = glFramebufferTexture2D GL_DRAW_FRAMEBUFFER attachment txTarget txObj txLevel
                     case textureType tex of
                         Texture1D     _ n
                             | n > 1             -> attachArray
-                            | otherwise         -> glFramebufferTexture1D gl_DRAW_FRAMEBUFFER attachment txTarget txObj txLevel
+                            | otherwise         -> glFramebufferTexture1D GL_DRAW_FRAMEBUFFER attachment txTarget txObj txLevel
                         Texture2D     _ n
                             | n > 1             -> attachArray
                             | otherwise         -> attach2D
@@ -361,13 +337,13 @@ compileRenderTarget texs glTexs (RenderTarget targets) = do
                     fail "Stencil support is not implemented yet!"
                     return a
                 go a (TargetItem Depth (Just img)) = do
-                    attach gl_DEPTH_ATTACHMENT img
+                    attach GL_DEPTH_ATTACHMENT img
                     return a
                 go (bufs,colorIdx) (TargetItem Color (Just img)) = do
-                    let attachment = gl_COLOR_ATTACHMENT0 + fromIntegral colorIdx
+                    let attachment = GL_COLOR_ATTACHMENT0 + fromIntegral colorIdx
                     attach attachment img
                     return (attachment : bufs, colorIdx + 1)
-                go (bufs,colorIdx) (TargetItem Color Nothing) = return (gl_NONE : bufs, colorIdx + 1)
+                go (bufs,colorIdx) (TargetItem Color Nothing) = return (GL_NONE : bufs, colorIdx + 1)
                 go a _ = return a
             (bufs,_) <- foldM go ([],0) targets
             withArray (reverse bufs) $ glDrawBuffers (fromIntegral $ length bufs)
@@ -469,27 +445,27 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds ++ s
         attrMap = inputStreams prg
         attrCmd i s = case s of
             Stream ty (Buffer arrs bo) arrIdx start len -> case ty of
-                TWord   -> setIntAttrib 1
-                TV2U    -> setIntAttrib 2
-                TV3U    -> setIntAttrib 3
-                TV4U    -> setIntAttrib 4
-                TInt    -> setIntAttrib 1
-                TV2I    -> setIntAttrib 2
-                TV3I    -> setIntAttrib 3
-                TV4I    -> setIntAttrib 4
-                TFloat  -> setFloatAttrib 1
-                TV2F    -> setFloatAttrib 2
-                TV3F    -> setFloatAttrib 3
-                TV4F    -> setFloatAttrib 4
-                TM22F   -> setFloatAttrib 4
-                TM23F   -> setFloatAttrib 6
-                TM24F   -> setFloatAttrib 8
-                TM32F   -> setFloatAttrib 6
-                TM33F   -> setFloatAttrib 9
-                TM34F   -> setFloatAttrib 12
-                TM42F   -> setFloatAttrib 8
-                TM43F   -> setFloatAttrib 12
-                TM44F   -> setFloatAttrib 16
+                Attribute_Word   -> setIntAttrib 1
+                Attribute_V2U    -> setIntAttrib 2
+                Attribute_V3U    -> setIntAttrib 3
+                Attribute_V4U    -> setIntAttrib 4
+                Attribute_Int    -> setIntAttrib 1
+                Attribute_V2I    -> setIntAttrib 2
+                Attribute_V3I    -> setIntAttrib 3
+                Attribute_V4I    -> setIntAttrib 4
+                Attribute_Float  -> setFloatAttrib 1
+                Attribute_V2F    -> setFloatAttrib 2
+                Attribute_V3F    -> setFloatAttrib 3
+                Attribute_V4F    -> setFloatAttrib 4
+                Attribute_M22F   -> setFloatAttrib 4
+                Attribute_M23F   -> setFloatAttrib 6
+                Attribute_M24F   -> setFloatAttrib 8
+                Attribute_M32F   -> setFloatAttrib 6
+                Attribute_M33F   -> setFloatAttrib 9
+                Attribute_M34F   -> setFloatAttrib 12
+                Attribute_M42F   -> setFloatAttrib 8
+                Attribute_M43F   -> setFloatAttrib 12
+                Attribute_M44F   -> setFloatAttrib 16
               where
                 setFloatAttrib n = GLSetVertexAttribArray i bo n glType (ptr n)
                 setIntAttrib n = GLSetVertexAttribIArray i bo n glType (ptr n)
@@ -500,8 +476,8 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds ++ s
             -- constant generic attribute
             constAttr -> GLSetVertexAttrib i constAttr
 
-allocPipeline :: Pipeline -> IO GLPipeline
-allocPipeline p = do
+allocRenderer :: Pipeline -> IO GLRenderer
+allocRenderer p = do
     let uniTrie = uniforms $ schemaFromPipeline p
     smps <- V.mapM compileSampler $ samplers p
     texs <- V.mapM compileTexture $ textures p
@@ -515,7 +491,7 @@ allocPipeline p = do
     -- default Vertex Array Object
     vao <- alloca $! \pvao -> glGenVertexArrays 1 pvao >> peek pvao
     strs <- V.mapM compileStreamData $ streams p
-    return $ GLPipeline
+    return $ GLRenderer
         { glPrograms        = prgs
         , glTextures        = texs
         , glSamplers        = smps
@@ -529,9 +505,9 @@ allocPipeline p = do
         , glStreams         = strs
         }
 
-disposePipeline :: GLPipeline -> IO ()
-disposePipeline p = do
-    setPipelineInput p Nothing
+disposeRenderer :: GLRenderer -> IO ()
+disposeRenderer p = do
+    setStorage' p Nothing
     V.forM_ (glPrograms p) $ \prg -> do
         glDeleteProgram $ programObject prg
         mapM_ glDeleteShader $ shaderObjects prg
@@ -581,8 +557,12 @@ isSubTrie eqFun universe subset = and [isMember a (T.lookup n universe) | (n,a) 
                 , show sType
                 ]
 -}
-setPipelineInput :: GLPipeline -> Maybe GLPipelineInput -> IO ()
-setPipelineInput p input' = do
+
+setStorage :: GLRenderer -> GLStorage -> IO (Maybe String)
+setStorage p input' = setStorage' p (Just input')
+
+setStorage' :: GLRenderer -> Maybe GLStorage -> IO (Maybe String)
+setStorage' p input' = do
     -- TODO: check matching input schema
     {-
     case input' of
@@ -615,7 +595,7 @@ setPipelineInput p input' = do
             - update used slots, and generate object commands for objects in the related slots
     -}
     case input' of
-        Nothing -> writeIORef (glInput p) Nothing
+        Nothing -> writeIORef (glInput p) Nothing >> return Nothing
         Just input -> do
             let pipelinesRef = pipelines input
             oldPipelineV <- readIORef pipelinesRef
@@ -658,6 +638,7 @@ setPipelineInput p input' = do
             -- generate stream commands
             V.forM_ (glStreams p) $ \s -> do
               writeIORef (glStreamCommands s) $ createStreamCommands texUnitMap topUnis (glStreamAttributes s) (glStreamPrimitive s) (progV ! glStreamProgram s)
+            return Nothing
 {-
   track state:
     - render target
@@ -691,23 +672,23 @@ setPipelineInput p input' = do
 -}
 {-
   track:
-    buffer binding on various targets: gl_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER
+    buffer binding on various targets: GL_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER
     glEnable/DisableVertexAttribArray
 -}
 renderSlot :: [GLObjectCommand] -> IO ()
 renderSlot cmds = forM_ cmds $ \cmd -> do
     case cmd of
         GLSetVertexAttribArray idx buf size typ ptr     -> do
-                                                            glBindBuffer gl_ARRAY_BUFFER buf
+                                                            glBindBuffer GL_ARRAY_BUFFER buf
                                                             glEnableVertexAttribArray idx
-                                                            glVertexAttribPointer idx size typ (fromIntegral gl_FALSE) 0 ptr
+                                                            glVertexAttribPointer idx size typ (fromIntegral GL_FALSE) 0 ptr
         GLSetVertexAttribIArray idx buf size typ ptr    -> do
-                                                            glBindBuffer gl_ARRAY_BUFFER buf
+                                                            glBindBuffer GL_ARRAY_BUFFER buf
                                                             glEnableVertexAttribArray idx
                                                             glVertexAttribIPointer idx size typ 0 ptr
         GLDrawArrays mode first count                   -> glDrawArrays mode first count
         GLDrawElements mode count typ buf indicesPtr    -> do
-                                                            glBindBuffer gl_ELEMENT_ARRAY_BUFFER buf
+                                                            glBindBuffer GL_ELEMENT_ARRAY_BUFFER buf
                                                             glDrawElements mode count typ indicesPtr
         GLSetUniform idx (GLUniform ty ref)             -> setUniform idx ty ref
         GLBindTexture txTarget tuRef (GLUniform _ ref)  -> do
@@ -716,7 +697,7 @@ renderSlot cmds = forM_ cmds $ \cmd -> do
                                                             with txObjVal $ \txObjPtr -> do
                                                                 txObj <- peek $ castPtr txObjPtr :: IO GLuint
                                                                 texUnit <- readIORef tuRef
-                                                                glActiveTexture $ gl_TEXTURE0 + fromIntegral texUnit
+                                                                glActiveTexture $ GL_TEXTURE0 + fromIntegral texUnit
                                                                 glBindTexture txTarget txObj
                                                                 putStrLn $ "to texture unit " ++ show texUnit ++ " texture object " ++ show txObj
         GLSetVertexAttrib idx val                       -> do
@@ -725,8 +706,8 @@ renderSlot cmds = forM_ cmds $ \cmd -> do
     isOk <- checkGL
     putStrLn $ SB.unpack isOk ++ " - " ++ show cmd
 
-renderPipeline :: GLPipeline -> IO ()
-renderPipeline glp = do
+renderFrame :: GLRenderer -> IO ()
+renderFrame glp = do
     glBindVertexArray (glVAO glp)
     forM_ (glCommands glp) $ \cmd -> do
         case cmd of
@@ -743,7 +724,7 @@ renderPipeline glp = do
                                                                 (w,h) <- readIORef $ screenSize input
                                                                 glViewport 0 0 (fromIntegral w) (fromIntegral h)
                                                 -- TODO: set FBO target viewport
-                                                glBindFramebuffer gl_DRAW_FRAMEBUFFER rt
+                                                glBindFramebuffer GL_DRAW_FRAMEBUFFER rt
                                                 case bufs of
                                                     Nothing -> return ()
                                                     Just bl -> withArray bl $ glDrawBuffers (fromIntegral $ length bl)
@@ -809,7 +790,7 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
     SetTexture tu t             -> do
                                     let tex = textures ! t
                                     modify (\s -> s {textureBinding = IM.insert tu tex $ textureBinding s})
-                                    return $ GLSetTexture (gl_TEXTURE0 + fromIntegral tu) (glTextureTarget tex) (glTextureObject tex)
+                                    return $ GLSetTexture (GL_TEXTURE0 + fromIntegral tu) (glTextureTarget tex) (glTextureObject tex)
 {-
     SetSampler tu s             -> liftIO $ do
                                         glBindSampler (fromIntegral tu) (samplerObject $ glSamplers glp ! s)
@@ -826,7 +807,7 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
                                     tb <- textureBinding <$> get
                                     case IM.lookup tu tb of
                                         Nothing     -> fail "internal error (GenerateMipMap)!"
-                                        Just tex    -> return $ GLGenerateMipMap (gl_TEXTURE0 + fromIntegral tu) (glTextureTarget tex)
+                                        Just tex    -> return $ GLGenerateMipMap (GL_TEXTURE0 + fromIntegral tu) (glTextureTarget tex)
 {-
     SaveImage _ _               -> undefined
     LoadImage _ _               -> undefined

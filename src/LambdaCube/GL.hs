@@ -1,4 +1,4 @@
-module Backend.GL (
+module LambdaCube.GL (
     -- IR
     V2(..),V3(..),V4(..),
     -- Array, Buffer, Texture
@@ -22,22 +22,23 @@ module Backend.GL (
     bufferSize,
     arraySize,
     arrayType,
-    compileTexture2DRGBAF,
-    compileTexture2DRGBAF',
+    uploadTexture2DToGPU,
+    uploadTexture2DToGPU',
 
-    -- GL Pipeline Input, Object
-    GLPipeline,
-    GLPipelineInput,
+    -- GL: Renderer, Storage, Object
+    GLRenderer,
+    GLStorage,
     Object,
     PipelineSchema(..),
     SlotSchema(..),
     schema,
     schemaFromPipeline,
-    allocPipeline,
-    disposePipeline,
-    setPipelineInput,
-    renderPipeline,
-    mkGLPipelineInput,
+    allocRenderer,
+    disposeRenderer,
+    setStorage,
+    renderFrame,
+    allocStorage,
+    disposeStorage,
     uniformSetter,
     addObject,
     removeObject,
@@ -80,9 +81,9 @@ module Backend.GL (
     uniformFTexture2D
 ) where
 
-import Backend.GL.Type
-import Backend.GL.Backend
-import Backend.GL.Data
-import Backend.GL.Input
+import LambdaCube.GL.Type
+import LambdaCube.GL.Backend
+import LambdaCube.GL.Data
+import LambdaCube.GL.Input
 import IR
 import Linear

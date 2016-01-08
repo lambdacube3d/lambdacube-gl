@@ -1,4 +1,4 @@
-module Backend.GL.Input where
+module LambdaCube.GL.Input where
 
 import Control.Applicative
 import Control.Exception
@@ -19,12 +19,12 @@ import qualified Data.Trie as T
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
 
-import Graphics.Rendering.OpenGL.Raw.Core33
+import Graphics.GL.Core33
 
 import IR as IR
 import Linear as IR
-import Backend.GL.Type as T
-import Backend.GL.Util
+import LambdaCube.GL.Type as T
+import LambdaCube.GL.Util
 
 import qualified IR as IR
 
@@ -48,8 +48,8 @@ mkUniform l = do
     let (unis,setters) = unzip unisAndSetters
     return (T.fromList setters, T.fromList unis)
 
-mkGLPipelineInput :: PipelineSchema -> IO GLPipelineInput
-mkGLPipelineInput sch = do
+allocStorage :: PipelineSchema -> IO GLStorage
+allocStorage sch = do
     let sm  = T.fromList $ zip (T.keys $ T.slots sch) [0..]
         len = T.size sm
     (setters,unis) <- mkUniform $ T.toList $ uniforms sch
@@ -57,7 +57,7 @@ mkGLPipelineInput sch = do
     slotV <- V.replicateM len $ newIORef (GLSlot IM.empty V.empty Ordered)
     size <- newIORef (0,0)
     ppls <- newIORef $ V.singleton Nothing
-    return $ GLPipelineInput
+    return $ GLStorage
         { schema        = sch
         , slotMap       = sm
         , slotVector    = slotV
@@ -68,8 +68,11 @@ mkGLPipelineInput sch = do
         , pipelines     = ppls
         }
 
+disposeStorage :: GLStorage -> IO ()
+disposeStorage = error "not implemented: disposeStorage"
+
 -- object
-addObject :: GLPipelineInput -> ByteString -> Primitive -> Maybe (IndexStream Buffer) -> Trie (Stream Buffer) -> [ByteString] -> IO Object
+addObject :: GLStorage -> ByteString -> Primitive -> Maybe (IndexStream Buffer) -> Trie (Stream Buffer) -> [ByteString] -> IO Object
 addObject input slotName prim indices attribs uniformNames = do
     let sch = schema input
     forM_ uniformNames $ \n -> case T.lookup n (uniforms sch) of
@@ -137,13 +140,13 @@ addObject input slotName prim indices attribs uniformNames = do
     writeIORef cmdsRef cmds
     return obj
 
-removeObject :: GLPipelineInput -> Object -> IO ()
+removeObject :: GLStorage -> Object -> IO ()
 removeObject p obj = modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot objs _ _) -> GLSlot (IM.delete (objId obj) objs) V.empty Generate
 
 enableObject :: Object -> Bool -> IO ()
 enableObject obj b = writeIORef (objEnabled obj) b
 
-setObjectOrder :: GLPipelineInput -> Object -> Int -> IO ()
+setObjectOrder :: GLStorage -> Object -> Int -> IO ()
 setObjectOrder p obj i = do
     writeIORef (objOrder obj) i
     modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot objs sorted _) -> GLSlot objs sorted Reorder
@@ -151,10 +154,10 @@ setObjectOrder p obj i = do
 objectUniformSetter :: Object -> Trie InputSetter
 objectUniformSetter = objUniSetter
 
-setScreenSize :: GLPipelineInput -> Word -> Word -> IO ()
+setScreenSize :: GLStorage -> Word -> Word -> IO ()
 setScreenSize p w h = writeIORef (screenSize p) (w,h)
 
-sortSlotObjects :: GLPipelineInput -> IO ()
+sortSlotObjects :: GLStorage -> IO ()
 sortSlotObjects p = V.forM_ (slotVector p) $ \slotRef -> do
     GLSlot objMap sortedV ord <- readIORef slotRef
     let cmpFun (a,_) (b,_) = a `compare` b
@@ -215,27 +218,27 @@ createObjectCommands texUnitMap topUnis obj prg = objUniCmds ++ objStreamCmds ++
         objAttrs = objAttributes obj
         attrCmd i s = case s of
             Stream ty (Buffer arrs bo) arrIdx start len -> case ty of
-                TWord   -> setIntAttrib 1
-                TV2U    -> setIntAttrib 2
-                TV3U    -> setIntAttrib 3
-                TV4U    -> setIntAttrib 4
-                TInt    -> setIntAttrib 1
-                TV2I    -> setIntAttrib 2
-                TV3I    -> setIntAttrib 3
-                TV4I    -> setIntAttrib 4
-                TFloat  -> setFloatAttrib 1
-                TV2F    -> setFloatAttrib 2
-                TV3F    -> setFloatAttrib 3
-                TV4F    -> setFloatAttrib 4
-                TM22F   -> setFloatAttrib 4
-                TM23F   -> setFloatAttrib 6
-                TM24F   -> setFloatAttrib 8
-                TM32F   -> setFloatAttrib 6
-                TM33F   -> setFloatAttrib 9
-                TM34F   -> setFloatAttrib 12
-                TM42F   -> setFloatAttrib 8
-                TM43F   -> setFloatAttrib 12
-                TM44F   -> setFloatAttrib 16
+                Attribute_Word   -> setIntAttrib 1
+                Attribute_V2U    -> setIntAttrib 2
+                Attribute_V3U    -> setIntAttrib 3
+                Attribute_V4U    -> setIntAttrib 4
+                Attribute_Int    -> setIntAttrib 1
+                Attribute_V2I    -> setIntAttrib 2
+                Attribute_V3I    -> setIntAttrib 3
+                Attribute_V4I    -> setIntAttrib 4
+                Attribute_Float  -> setFloatAttrib 1
+                Attribute_V2F    -> setFloatAttrib 2
+                Attribute_V3F    -> setFloatAttrib 3
+                Attribute_V4F    -> setFloatAttrib 4
+                Attribute_M22F   -> setFloatAttrib 4
+                Attribute_M23F   -> setFloatAttrib 6
+                Attribute_M24F   -> setFloatAttrib 8
+                Attribute_M32F   -> setFloatAttrib 6
+                Attribute_M33F   -> setFloatAttrib 9
+                Attribute_M34F   -> setFloatAttrib 12
+                Attribute_M42F   -> setFloatAttrib 8
+                Attribute_M43F   -> setFloatAttrib 12
+                Attribute_M44F   -> setFloatAttrib 16
               where
                 setFloatAttrib n = GLSetVertexAttribArray i bo n glType (ptr n)
                 setIntAttrib n = GLSetVertexAttribIArray i bo n glType (ptr n)

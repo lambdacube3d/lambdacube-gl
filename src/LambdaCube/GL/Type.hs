@@ -1,5 +1,5 @@
 {-# LANGUAGE ExistentialQuantification, FlexibleInstances, GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
-module Backend.GL.Type where
+module LambdaCube.GL.Type where
 
 import Data.ByteString.Char8 (ByteString)
 import Data.IORef
@@ -12,7 +12,7 @@ import Data.Word
 import Foreign.Ptr
 import Foreign.Storable
 
-import Graphics.Rendering.OpenGL.Raw.Core33
+import Graphics.GL.Core33
 
 import Linear
 import IR
@@ -56,7 +56,7 @@ data ArrayDesc
     buffers
     objects
 
-  GLPipelineInput can be attached to GLPipeline
+  GLStorage can be attached to GLRenderer
 -}
 
 {-
@@ -96,8 +96,8 @@ data GLSlot
     , orderJob      :: OrderJob
     }
 
-data GLPipelineInput
-    = GLPipelineInput
+data GLStorage
+    = GLStorage
     { schema        :: PipelineSchema
     , slotMap       :: Trie SlotName
     , slotVector    :: Vector (IORef GLSlot)
@@ -105,7 +105,7 @@ data GLPipelineInput
     , uniformSetter :: Trie InputSetter
     , uniformSetup  :: Trie GLUniform
     , screenSize    :: IORef (Word,Word)
-    , pipelines     :: IORef (Vector (Maybe GLPipeline)) -- attached pipelines
+    , pipelines     :: IORef (Vector (Maybe GLRenderer)) -- attached pipelines
     }
 
 data Object -- internal type
@@ -145,9 +145,9 @@ data GLTexture
 data InputConnection
     = InputConnection
     { icId                      :: Int              -- identifier (vector index) for attached pipeline
-    , icInput                   :: GLPipelineInput
-    , icSlotMapPipelineToInput  :: Vector SlotName  -- GLPipeline to GLPipelineInput slot name mapping
-    , icSlotMapInputToPipeline  :: Vector (Maybe SlotName)  -- GLPipelineInput to GLPipeline slot name mapping
+    , icInput                   :: GLStorage
+    , icSlotMapPipelineToInput  :: Vector SlotName  -- GLRenderer to GLStorage slot name mapping
+    , icSlotMapInputToPipeline  :: Vector (Maybe SlotName)  -- GLStorage to GLRenderer slot name mapping
     }
 
 data GLStream
@@ -158,8 +158,8 @@ data GLStream
     , glStreamProgram     :: ProgramName
     }
 
-data GLPipeline
-    = GLPipeline
+data GLRenderer
+    = GLRenderer
     { glPrograms        :: Vector GLProgram
     , glTextures        :: Vector GLTexture
     , glSamplers        :: Vector GLSampler
@@ -324,75 +324,75 @@ data Array  -- array type, element count (NOT byte size!), setter
 --              we restrict StreamType using type class
 -- subset of InputType, describes a stream type (in GPU side)
 data StreamType
-    = TWord
-    | TV2U
-    | TV3U
-    | TV4U
-    | TInt
-    | TV2I
-    | TV3I
-    | TV4I
-    | TFloat
-    | TV2F
-    | TV3F
-    | TV4F
-    | TM22F
-    | TM23F
-    | TM24F
-    | TM32F
-    | TM33F
-    | TM34F
-    | TM42F
-    | TM43F
-    | TM44F
+    = Attribute_Word
+    | Attribute_V2U
+    | Attribute_V3U
+    | Attribute_V4U
+    | Attribute_Int
+    | Attribute_V2I
+    | Attribute_V3I
+    | Attribute_V4I
+    | Attribute_Float
+    | Attribute_V2F
+    | Attribute_V3F
+    | Attribute_V4F
+    | Attribute_M22F
+    | Attribute_M23F
+    | Attribute_M24F
+    | Attribute_M32F
+    | Attribute_M33F
+    | Attribute_M34F
+    | Attribute_M42F
+    | Attribute_M43F
+    | Attribute_M44F
     deriving (Show,Eq,Ord)
 
 toStreamType :: InputType -> Maybe StreamType
-toStreamType Word     = Just TWord
-toStreamType V2U      = Just TV2U
-toStreamType V3U      = Just TV3U
-toStreamType V4U      = Just TV4U
-toStreamType Int      = Just TInt
-toStreamType V2I      = Just TV2I
-toStreamType V3I      = Just TV3I
-toStreamType V4I      = Just TV4I
-toStreamType Float    = Just TFloat
-toStreamType V2F      = Just TV2F
-toStreamType V3F      = Just TV3F
-toStreamType V4F      = Just TV4F
-toStreamType M22F     = Just TM22F
-toStreamType M23F     = Just TM23F
-toStreamType M24F     = Just TM24F
-toStreamType M32F     = Just TM32F
-toStreamType M33F     = Just TM33F
-toStreamType M34F     = Just TM34F
-toStreamType M42F     = Just TM42F
-toStreamType M43F     = Just TM43F
-toStreamType M44F     = Just TM44F
+toStreamType Word     = Just Attribute_Word
+toStreamType V2U      = Just Attribute_V2U
+toStreamType V3U      = Just Attribute_V3U
+toStreamType V4U      = Just Attribute_V4U
+toStreamType Int      = Just Attribute_Int
+toStreamType V2I      = Just Attribute_V2I
+toStreamType V3I      = Just Attribute_V3I
+toStreamType V4I      = Just Attribute_V4I
+toStreamType Float    = Just Attribute_Float
+toStreamType V2F      = Just Attribute_V2F
+toStreamType V3F      = Just Attribute_V3F
+toStreamType V4F      = Just Attribute_V4F
+toStreamType M22F     = Just Attribute_M22F
+toStreamType M23F     = Just Attribute_M23F
+toStreamType M24F     = Just Attribute_M24F
+toStreamType M32F     = Just Attribute_M32F
+toStreamType M33F     = Just Attribute_M33F
+toStreamType M34F     = Just Attribute_M34F
+toStreamType M42F     = Just Attribute_M42F
+toStreamType M43F     = Just Attribute_M43F
+toStreamType M44F     = Just Attribute_M44F
 toStreamType _          = Nothing
 
 fromStreamType :: StreamType -> InputType
-fromStreamType TWord    = Word
-fromStreamType TV2U     = V2U
-fromStreamType TV3U     = V3U
-fromStreamType TV4U     = V4U
-fromStreamType TInt     = Int
-fromStreamType TV2I     = V2I
-fromStreamType TV3I     = V3I
-fromStreamType TV4I     = V4I
-fromStreamType TFloat   = Float
-fromStreamType TV2F     = V2F
-fromStreamType TV3F     = V3F
-fromStreamType TV4F     = V4F
-fromStreamType TM22F    = M22F
-fromStreamType TM23F    = M23F
-fromStreamType TM24F    = M24F
-fromStreamType TM32F    = M32F
-fromStreamType TM33F    = M33F
-fromStreamType TM34F    = M34F
-fromStreamType TM42F    = M42F
-fromStreamType TM43F    = M43F
-fromStreamType TM44F    = M44F
+fromStreamType Attribute_Word    = Word
+fromStreamType Attribute_V2U     = V2U
+fromStreamType Attribute_V3U     = V3U
+fromStreamType Attribute_V4U     = V4U
+fromStreamType Attribute_Int     = Int
+fromStreamType Attribute_V2I     = V2I
+fromStreamType Attribute_V3I     = V3I
+fromStreamType Attribute_V4I     = V4I
+fromStreamType Attribute_Float   = Float
+fromStreamType Attribute_V2F     = V2F
+fromStreamType Attribute_V3F     = V3F
+fromStreamType Attribute_V4F     = V4F
+fromStreamType Attribute_M22F    = M22F
+fromStreamType Attribute_M23F    = M23F
+fromStreamType Attribute_M24F    = M24F
+fromStreamType Attribute_M32F    = M32F
+fromStreamType Attribute_M33F    = M33F
+fromStreamType Attribute_M34F    = M34F
+fromStreamType Attribute_M42F    = M42F
+fromStreamType Attribute_M43F    = M43F
+fromStreamType Attribute_M44F    = M44F
 
 -- user can specify streams using Stream type
 -- a stream can be constant (ConstXXX) or can came from a buffer
@@ -429,27 +429,27 @@ data Stream b
 
 streamToStreamType :: Stream a -> StreamType
 streamToStreamType s = case s of
-    ConstWord  _ -> TWord
-    ConstV2U   _ -> TV2U
-    ConstV3U   _ -> TV3U
-    ConstV4U   _ -> TV4U
-    ConstInt   _ -> TInt
-    ConstV2I   _ -> TV2I
-    ConstV3I   _ -> TV3I
-    ConstV4I   _ -> TV4I
-    ConstFloat _ -> TFloat
-    ConstV2F   _ -> TV2F
-    ConstV3F   _ -> TV3F
-    ConstV4F   _ -> TV4F
-    ConstM22F  _ -> TM22F
-    ConstM23F  _ -> TM23F
-    ConstM24F  _ -> TM24F
-    ConstM32F  _ -> TM32F
-    ConstM33F  _ -> TM33F
-    ConstM34F  _ -> TM34F
-    ConstM42F  _ -> TM42F
-    ConstM43F  _ -> TM43F
-    ConstM44F  _ -> TM44F
+    ConstWord  _ -> Attribute_Word
+    ConstV2U   _ -> Attribute_V2U
+    ConstV3U   _ -> Attribute_V3U
+    ConstV4U   _ -> Attribute_V4U
+    ConstInt   _ -> Attribute_Int
+    ConstV2I   _ -> Attribute_V2I
+    ConstV3I   _ -> Attribute_V3I
+    ConstV4I   _ -> Attribute_V4I
+    ConstFloat _ -> Attribute_Float
+    ConstV2F   _ -> Attribute_V2F
+    ConstV3F   _ -> Attribute_V3F
+    ConstV4F   _ -> Attribute_V4F
+    ConstM22F  _ -> Attribute_M22F
+    ConstM23F  _ -> Attribute_M23F
+    ConstM24F  _ -> Attribute_M24F
+    ConstM32F  _ -> Attribute_M32F
+    ConstM33F  _ -> Attribute_M33F
+    ConstM34F  _ -> Attribute_M34F
+    ConstM42F  _ -> Attribute_M42F
+    ConstM43F  _ -> Attribute_M43F
+    ConstM44F  _ -> Attribute_M44F
     Stream t _ _ _ _ -> t
 
 -- stream of index values (for index buffer)
