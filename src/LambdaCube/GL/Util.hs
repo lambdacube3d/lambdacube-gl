@@ -37,7 +37,6 @@ import Control.Monad
 import Data.ByteString.Char8 (ByteString,pack,unpack)
 import Data.IORef
 import Data.List as L
-import Data.Trie as T
 import Foreign
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.Vector as V
@@ -51,8 +50,8 @@ import Linear
 import IR
 import LambdaCube.GL.Type
 
-toTrie :: Map String a -> Trie a
-toTrie m = T.fromList [(pack k,v) | (k,v) <- Map.toList m]
+toTrie :: Map String a -> Map ByteString a
+toTrie m = Map.fromList [(pack k,v) | (k,v) <- Map.toList m]
 
 setSampler :: GLint -> Int32 -> IO ()
 setSampler i v = glUniform1i i $ fromIntegral v
@@ -62,13 +61,13 @@ z3 = V3 0 0 0 :: V3F
 z4 = V4 0 0 0 0 :: V4F
 
 -- uniform functions
-queryUniforms :: GLuint -> IO (Trie GLint, Trie InputType)
+queryUniforms :: GLuint -> IO (Map ByteString GLint, Map ByteString InputType)
 queryUniforms po = do
     ul <- getNameTypeSize po glGetActiveUniform glGetUniformLocation GL_ACTIVE_UNIFORMS GL_ACTIVE_UNIFORM_MAX_LENGTH
     let uNames = [n | (n,_,_,_) <- ul]
         uTypes = [fromGLType (e,s) | (_,_,e,s) <- ul]
         uLocation = [i | (_,i,_,_) <- ul]
-    return $! (T.fromList $! zip uNames uLocation, T.fromList $! zip uNames uTypes)
+    return $! (Map.fromList $! zip uNames uLocation, Map.fromList $! zip uNames uTypes)
 
 b2w :: Bool -> GLuint
 b2w True = 1
@@ -137,13 +136,13 @@ setUniform i ty ref = do
         _   -> fail $ "internal error (setUniform)! - " ++ show ty
 
 -- attribute functions
-queryStreams :: GLuint -> IO (Trie GLuint, Trie InputType)
+queryStreams :: GLuint -> IO (Map ByteString GLuint, Map ByteString InputType)
 queryStreams po = do
     al <- getNameTypeSize po glGetActiveAttrib glGetAttribLocation GL_ACTIVE_ATTRIBUTES GL_ACTIVE_ATTRIBUTE_MAX_LENGTH
     let aNames = [n | (n,_,_,_) <- al]
         aTypes = [fromGLType (e,s) | (_,_,e,s) <- al]
         aLocation = [fromIntegral i | (_,i,_,_) <- al]
-    return $! (T.fromList $! zip aNames aLocation, T.fromList $! zip aNames aTypes)
+    return $! (Map.fromList $! zip aNames aLocation, Map.fromList $! zip aNames aTypes)
 
 arrayTypeToGLType :: ArrayType -> GLenum
 arrayTypeToGLType a = case a of

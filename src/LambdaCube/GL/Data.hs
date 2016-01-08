@@ -6,7 +6,6 @@ import Data.ByteString.Char8 (ByteString)
 import Data.IORef
 import Data.List as L
 import Data.Maybe
-import Data.Trie as T
 import Foreign 
 --import qualified Data.IntMap as IM
 import qualified Data.Map as Map

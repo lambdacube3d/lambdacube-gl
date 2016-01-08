@@ -30,7 +30,7 @@ module LambdaCube.GL (
     GLStorage,
     Object,
     PipelineSchema(..),
-    SlotSchema(..),
+    ObjectArraySchema(..),
     schema,
     schemaFromPipeline,
     allocRenderer,

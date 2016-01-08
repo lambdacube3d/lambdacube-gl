@@ -5,9 +5,8 @@ import Control.Exception
 import Control.Monad
 import Data.ByteString.Char8 (ByteString,pack)
 import Data.IORef
+import Data.Map (Map)
 import Data.IntMap (IntMap)
-import Data.Trie (Trie)
-import Data.Trie.Convenience as T
 import Data.Vector (Vector,(//),(!))
 import Data.Word
 import Foreign
@@ -15,7 +14,6 @@ import qualified Data.ByteString.Char8 as SB
 import qualified Data.IntMap as IM
 import qualified Data.Set as S
 import qualified Data.Map as Map
-import qualified Data.Trie as T
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
 
@@ -29,9 +27,9 @@ import LambdaCube.GL.Util
 import qualified IR as IR
 
 schemaFromPipeline :: IR.Pipeline -> PipelineSchema
-schemaFromPipeline a = PipelineSchema (T.fromList sl) (foldl T.unionL T.empty ul)
+schemaFromPipeline a = PipelineSchema (Map.fromList sl) (foldl Map.union Map.empty ul)
   where
-    (sl,ul) = unzip [( (pack sName,SlotSchema sPrimitive (fmap cvt (toTrie sStreams)))
+    (sl,ul) = unzip [( (pack sName,ObjectArraySchema sPrimitive (fmap cvt (toTrie sStreams)))
                      , toTrie sUniforms
                      )
                     | IR.Slot sName sStreams sUniforms sPrimitive _ <- V.toList $ IR.slots a
@@ -40,19 +38,19 @@ schemaFromPipeline a = PipelineSchema (T.fromList sl) (foldl T.unionL T.empty ul
         Just v  -> v
         Nothing -> error "internal error (schemaFromPipeline)"
 
-mkUniform :: [(ByteString,InputType)] -> IO (Trie InputSetter, Trie GLUniform)
+mkUniform :: [(ByteString,InputType)] -> IO (Map ByteString InputSetter, Map ByteString GLUniform)
 mkUniform l = do
     unisAndSetters <- forM l $ \(n,t) -> do
         (uni, setter) <- mkUniformSetter t
         return ((n,uni),(n,setter))
     let (unis,setters) = unzip unisAndSetters
-    return (T.fromList setters, T.fromList unis)
+    return (Map.fromList setters, Map.fromList unis)
 
 allocStorage :: PipelineSchema -> IO GLStorage
 allocStorage sch = do
-    let sm  = T.fromList $ zip (T.keys $ T.slots sch) [0..]
-        len = T.size sm
-    (setters,unis) <- mkUniform $ T.toList $ uniforms sch
+    let sm  = Map.fromList $ zip (Map.keys $ objectArrays sch) [0..]
+        len = Map.size sm
+    (setters,unis) <- mkUniform $ Map.toList $ uniforms sch
     seed <- newIORef 0
     slotV <- V.replicateM len $ newIORef (GLSlot IM.empty V.empty Ordered)
     size <- newIORef (0,0)
@@ -72,15 +70,15 @@ disposeStorage :: GLStorage -> IO ()
 disposeStorage = error "not implemented: disposeStorage"
 
 -- object
-addObject :: GLStorage -> ByteString -> Primitive -> Maybe (IndexStream Buffer) -> Trie (Stream Buffer) -> [ByteString] -> IO Object
+addObject :: GLStorage -> ByteString -> Primitive -> Maybe (IndexStream Buffer) -> Map ByteString (Stream Buffer) -> [ByteString] -> IO Object
 addObject input slotName prim indices attribs uniformNames = do
     let sch = schema input
-    forM_ uniformNames $ \n -> case T.lookup n (uniforms sch) of
+    forM_ uniformNames $ \n -> case Map.lookup n (uniforms sch) of
         Nothing -> throw $ userError $ "Unknown uniform: " ++ show n
         _ -> return ()
-    case T.lookup slotName (T.slots sch) of
+    case Map.lookup slotName (objectArrays sch) of
         Nothing -> throw $ userError $ "Unknown slot: " ++ show slotName
-        Just (SlotSchema sPrim sAttrs) -> do
+        Just (ObjectArraySchema sPrim sAttrs) -> do
             when (sPrim /= (primitiveToFetchPrimitive prim)) $ throw $ userError $
                 "Primitive mismatch for slot (" ++ show slotName ++ ") expected " ++ show sPrim  ++ " but got " ++ show prim
             let sType = fmap streamToStreamType attribs
@@ -91,7 +89,7 @@ addObject input slotName prim indices attribs uniformNames = do
                 , show sType
                 ]
                 
-    let slotIdx = case slotName `T.lookup` slotMap input of
+    let slotIdx = case slotName `Map.lookup` slotMap input of
             Nothing -> error $ "internal error (slot index): " ++ show slotName
             Just i  -> i
         seed = objSeed input
@@ -99,7 +97,7 @@ addObject input slotName prim indices attribs uniformNames = do
     enabled <- newIORef True
     index <- readIORef seed
     modifyIORef seed (1+)
-    (setters,unis) <- mkUniform [(n,t) | n <- uniformNames, let Just t = T.lookup n (uniforms sch)]
+    (setters,unis) <- mkUniform [(n,t) | n <- uniformNames, let Just t = Map.lookup n (uniforms sch)]
     cmdsRef <- newIORef (V.singleton V.empty)
     let obj = Object
             { objSlot       = slotIdx
@@ -151,7 +149,7 @@ setObjectOrder p obj i = do
     writeIORef (objOrder obj) i
     modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot objs sorted _) -> GLSlot objs sorted Reorder
 
-objectUniformSetter :: Object -> Trie InputSetter
+objectUniformSetter :: Object -> Map ByteString InputSetter
 objectUniformSetter = objUniSetter
 
 setScreenSize :: GLStorage -> Word -> Word -> IO ()
@@ -179,7 +177,7 @@ sortSlotObjects p = V.forM_ (slotVector p) $ \slotRef -> do
                 return (ord,obj)
             doSort objs
 
-createObjectCommands :: Trie (IORef GLint) -> Trie GLUniform -> Object -> GLProgram -> [GLObjectCommand]
+createObjectCommands :: Map ByteString (IORef GLint) -> Map ByteString GLUniform -> Object -> GLProgram -> [GLObjectCommand]
 createObjectCommands texUnitMap topUnis obj prg = objUniCmds ++ objStreamCmds ++ [objDrawCmd]
   where
     -- object draw command
@@ -193,26 +191,26 @@ createObjectCommands texUnitMap topUnis obj prg = objUniCmds ++ objStreamCmds ++
       where
         objAttrs = objAttributes obj
         prim = primitiveToGLType $ objPrimitive obj
-        count = head [c | Stream _ _ _ _ c <- T.elems objAttrs]
+        count = head [c | Stream _ _ _ _ c <- Map.elems objAttrs]
 
     -- object uniform commands
     -- texture slot setup commands
     objUniCmds = uniCmds ++ texCmds
       where
-        uniCmds = [GLSetUniform i u | (n,i) <- uniMap, let u = T.lookupWithDefault (topUni n) n objUnis]
-        uniMap  = T.toList $ inputUniforms prg
-        topUni n = T.lookupWithDefault (error $ "internal error (createObjectCommands): " ++ show n) n topUnis
+        uniCmds = [GLSetUniform i u | (n,i) <- uniMap, let u = Map.findWithDefault (topUni n) n objUnis]
+        uniMap  = Map.toList $ inputUniforms prg
+        topUni n = Map.findWithDefault (error $ "internal error (createObjectCommands): " ++ show n) n topUnis
         objUnis = objUniSetup obj
         texUnis = S.toList $ inputTextureUniforms prg
         texCmds = [ GLBindTexture (inputTypeToTextureTarget $ uniInputType u) texUnit u
                   | n <- texUnis
-                  , let u = T.lookupWithDefault (topUni n) n objUnis
-                  , let texUnit = T.lookupWithDefault (error $ "internal error (createObjectCommands - Texture Unit): " ++ show n) n texUnitMap
+                  , let u = Map.findWithDefault (topUni n) n objUnis
+                  , let texUnit = Map.findWithDefault (error $ "internal error (createObjectCommands - Texture Unit): " ++ show n) n texUnitMap
                   ]
         uniInputType (GLUniform ty _) = ty
 
     -- object attribute stream commands
-    objStreamCmds = [attrCmd i s | (i,name) <- T.elems attrMap, let Just s = T.lookup name objAttrs]
+    objStreamCmds = [attrCmd i s | (i,name) <- Map.elems attrMap, let Just s = Map.lookup name objAttrs]
       where 
         attrMap = inputStreams prg
         objAttrs = objAttributes obj
@@ -253,138 +251,138 @@ nullSetter :: ByteString -> String -> a -> IO ()
 --nullSetter n t _ = return () -- Prelude.putStrLn $ "WARNING: unknown uniform: " ++ SB.unpack n ++ " :: " ++ t
 nullSetter n t _ = Prelude.putStrLn $ "WARNING: unknown uniform: " ++ SB.unpack n ++ " :: " ++ t
 
-uniformBool  :: ByteString -> Trie InputSetter -> SetterFun Bool
-uniformV2B   :: ByteString -> Trie InputSetter -> SetterFun V2B
-uniformV3B   :: ByteString -> Trie InputSetter -> SetterFun V3B
-uniformV4B   :: ByteString -> Trie InputSetter -> SetterFun V4B
+uniformBool  :: ByteString -> Map ByteString InputSetter -> SetterFun Bool
+uniformV2B   :: ByteString -> Map ByteString InputSetter -> SetterFun V2B
+uniformV3B   :: ByteString -> Map ByteString InputSetter -> SetterFun V3B
+uniformV4B   :: ByteString -> Map ByteString InputSetter -> SetterFun V4B
 
-uniformWord  :: ByteString -> Trie InputSetter -> SetterFun Word32
-uniformV2U   :: ByteString -> Trie InputSetter -> SetterFun V2U
-uniformV3U   :: ByteString -> Trie InputSetter -> SetterFun V3U
-uniformV4U   :: ByteString -> Trie InputSetter -> SetterFun V4U
+uniformWord  :: ByteString -> Map ByteString InputSetter -> SetterFun Word32
+uniformV2U   :: ByteString -> Map ByteString InputSetter -> SetterFun V2U
+uniformV3U   :: ByteString -> Map ByteString InputSetter -> SetterFun V3U
+uniformV4U   :: ByteString -> Map ByteString InputSetter -> SetterFun V4U
 
-uniformInt   :: ByteString -> Trie InputSetter -> SetterFun Int32
-uniformV2I   :: ByteString -> Trie InputSetter -> SetterFun V2I
-uniformV3I   :: ByteString -> Trie InputSetter -> SetterFun V3I
-uniformV4I   :: ByteString -> Trie InputSetter -> SetterFun V4I
+uniformInt   :: ByteString -> Map ByteString InputSetter -> SetterFun Int32
+uniformV2I   :: ByteString -> Map ByteString InputSetter -> SetterFun V2I
+uniformV3I   :: ByteString -> Map ByteString InputSetter -> SetterFun V3I
+uniformV4I   :: ByteString -> Map ByteString InputSetter -> SetterFun V4I
 
-uniformFloat :: ByteString -> Trie InputSetter -> SetterFun Float
-uniformV2F   :: ByteString -> Trie InputSetter -> SetterFun V2F
-uniformV3F   :: ByteString -> Trie InputSetter -> SetterFun V3F
-uniformV4F   :: ByteString -> Trie InputSetter -> SetterFun V4F
+uniformFloat :: ByteString -> Map ByteString InputSetter -> SetterFun Float
+uniformV2F   :: ByteString -> Map ByteString InputSetter -> SetterFun V2F
+uniformV3F   :: ByteString -> Map ByteString InputSetter -> SetterFun V3F
+uniformV4F   :: ByteString -> Map ByteString InputSetter -> SetterFun V4F
 
-uniformM22F   :: ByteString -> Trie InputSetter -> SetterFun M22F
-uniformM23F   :: ByteString -> Trie InputSetter -> SetterFun M23F
-uniformM24F   :: ByteString -> Trie InputSetter -> SetterFun M24F
-uniformM32F   :: ByteString -> Trie InputSetter -> SetterFun M32F
-uniformM33F   :: ByteString -> Trie InputSetter -> SetterFun M33F
-uniformM34F   :: ByteString -> Trie InputSetter -> SetterFun M34F
-uniformM42F   :: ByteString -> Trie InputSetter -> SetterFun M42F
-uniformM43F   :: ByteString -> Trie InputSetter -> SetterFun M43F
-uniformM44F   :: ByteString -> Trie InputSetter -> SetterFun M44F
+uniformM22F   :: ByteString -> Map ByteString InputSetter -> SetterFun M22F
+uniformM23F   :: ByteString -> Map ByteString InputSetter -> SetterFun M23F
+uniformM24F   :: ByteString -> Map ByteString InputSetter -> SetterFun M24F
+uniformM32F   :: ByteString -> Map ByteString InputSetter -> SetterFun M32F
+uniformM33F   :: ByteString -> Map ByteString InputSetter -> SetterFun M33F
+uniformM34F   :: ByteString -> Map ByteString InputSetter -> SetterFun M34F
+uniformM42F   :: ByteString -> Map ByteString InputSetter -> SetterFun M42F
+uniformM43F   :: ByteString -> Map ByteString InputSetter -> SetterFun M43F
+uniformM44F   :: ByteString -> Map ByteString InputSetter -> SetterFun M44F
 
-uniformFTexture2D   :: ByteString -> Trie InputSetter -> SetterFun TextureData
+uniformFTexture2D   :: ByteString -> Map ByteString InputSetter -> SetterFun TextureData
 
-uniformBool n is = case T.lookup n is of
+uniformBool n is = case Map.lookup n is of
     Just (SBool fun)    -> fun
     _   -> nullSetter n "Bool"
 
-uniformV2B n is = case T.lookup n is of
+uniformV2B n is = case Map.lookup n is of
     Just (SV2B fun)    -> fun
     _   -> nullSetter n "V2B"
 
-uniformV3B n is = case T.lookup n is of
+uniformV3B n is = case Map.lookup n is of
     Just (SV3B fun)    -> fun
     _   -> nullSetter n "V3B"
 
-uniformV4B n is = case T.lookup n is of
+uniformV4B n is = case Map.lookup n is of
     Just (SV4B fun)    -> fun
     _   -> nullSetter n "V4B"
 
-uniformWord n is = case T.lookup n is of
+uniformWord n is = case Map.lookup n is of
     Just (SWord fun)    -> fun
     _   -> nullSetter n "Word"
 
-uniformV2U n is = case T.lookup n is of
+uniformV2U n is = case Map.lookup n is of
     Just (SV2U fun)    -> fun
     _   -> nullSetter n "V2U"
 
-uniformV3U n is = case T.lookup n is of
+uniformV3U n is = case Map.lookup n is of
     Just (SV3U fun)    -> fun
     _   -> nullSetter n "V3U"
 
-uniformV4U n is = case T.lookup n is of
+uniformV4U n is = case Map.lookup n is of
     Just (SV4U fun)    -> fun
     _   -> nullSetter n "V4U"
 
-uniformInt n is = case T.lookup n is of
+uniformInt n is = case Map.lookup n is of
     Just (SInt fun)    -> fun
     _   -> nullSetter n "Int"
 
-uniformV2I n is = case T.lookup n is of
+uniformV2I n is = case Map.lookup n is of
     Just (SV2I fun)    -> fun
     _   -> nullSetter n "V2I"
 
-uniformV3I n is = case T.lookup n is of
+uniformV3I n is = case Map.lookup n is of
     Just (SV3I fun)    -> fun
     _   -> nullSetter n "V3I"
 
-uniformV4I n is = case T.lookup n is of
+uniformV4I n is = case Map.lookup n is of
     Just (SV4I fun)    -> fun
     _   -> nullSetter n "V4I"
 
-uniformFloat n is = case T.lookup n is of
+uniformFloat n is = case Map.lookup n is of
     Just (SFloat fun)    -> fun
     _   -> nullSetter n "Float"
 
-uniformV2F n is = case T.lookup n is of
+uniformV2F n is = case Map.lookup n is of
     Just (SV2F fun)    -> fun
     _   -> nullSetter n "V2F"
 
-uniformV3F n is = case T.lookup n is of
+uniformV3F n is = case Map.lookup n is of
     Just (SV3F fun)    -> fun
     _   -> nullSetter n "V3F"
 
-uniformV4F n is = case T.lookup n is of
+uniformV4F n is = case Map.lookup n is of
     Just (SV4F fun)    -> fun
     _   -> nullSetter n "V4F"
 
-uniformM22F n is = case T.lookup n is of
+uniformM22F n is = case Map.lookup n is of
     Just (SM22F fun)    -> fun
     _   -> nullSetter n "M22F"
 
-uniformM23F n is = case T.lookup n is of
+uniformM23F n is = case Map.lookup n is of
     Just (SM23F fun)    -> fun
     _   -> nullSetter n "M23F"
 
-uniformM24F n is = case T.lookup n is of
+uniformM24F n is = case Map.lookup n is of
     Just (SM24F fun)    -> fun
     _   -> nullSetter n "M24F"
 
-uniformM32F n is = case T.lookup n is of
+uniformM32F n is = case Map.lookup n is of
     Just (SM32F fun)    -> fun
     _   -> nullSetter n "M32F"
 
-uniformM33F n is = case T.lookup n is of
+uniformM33F n is = case Map.lookup n is of
     Just (SM33F fun)    -> fun
     _   -> nullSetter n "M33F"
 
-uniformM34F n is = case T.lookup n is of
+uniformM34F n is = case Map.lookup n is of
     Just (SM34F fun)    -> fun
     _   -> nullSetter n "M34F"
 
-uniformM42F n is = case T.lookup n is of
+uniformM42F n is = case Map.lookup n is of
     Just (SM42F fun)    -> fun
     _   -> nullSetter n "M42F"
 
-uniformM43F n is = case T.lookup n is of
+uniformM43F n is = case Map.lookup n is of
     Just (SM43F fun)    -> fun
     _   -> nullSetter n "M43F"
 
-uniformM44F n is = case T.lookup n is of
+uniformM44F n is = case Map.lookup n is of
     Just (SM44F fun)    -> fun
     _   -> nullSetter n "M44F"
 
-uniformFTexture2D n is = case T.lookup n is of
+uniformFTexture2D n is = case Map.lookup n is of
     Just (SFTexture2D fun)    -> fun
     _   -> nullSetter n "FTexture2D"

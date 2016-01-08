@@ -6,7 +6,7 @@ import Data.IORef
 import Data.Int
 import Data.IntMap (IntMap)
 import Data.Set (Set)
-import Data.Trie (Trie)
+import Data.Map (Map)
 import Data.Vector (Vector)
 import Data.Word
 import Foreign.Ptr
@@ -65,17 +65,17 @@ data ArrayDesc
     - per object features: enable/disable visibility, set render ordering
 -}
 
-data SlotSchema
-    = SlotSchema
+data ObjectArraySchema
+    = ObjectArraySchema
     { primitive     :: FetchPrimitive
-    , attributes    :: Trie StreamType
+    , attributes    :: Map ByteString StreamType
     }
     deriving Show
 
 data PipelineSchema
     = PipelineSchema
-    { slots     :: Trie SlotSchema
-    , uniforms  :: Trie InputType
+    { objectArrays  :: Map ByteString ObjectArraySchema
+    , uniforms      :: Map ByteString InputType
     }
     deriving Show
 
@@ -99,11 +99,11 @@ data GLSlot
 data GLStorage
     = GLStorage
     { schema        :: PipelineSchema
-    , slotMap       :: Trie SlotName
+    , slotMap       :: Map ByteString SlotName
     , slotVector    :: Vector (IORef GLSlot)
     , objSeed       :: IORef Int
-    , uniformSetter :: Trie InputSetter
-    , uniformSetup  :: Trie GLUniform
+    , uniformSetter :: Map ByteString InputSetter
+    , uniformSetup  :: Map ByteString GLUniform
     , screenSize    :: IORef (Word,Word)
     , pipelines     :: IORef (Vector (Maybe GLRenderer)) -- attached pipelines
     }
@@ -113,9 +113,9 @@ data Object -- internal type
     { objSlot       :: SlotName
     , objPrimitive  :: Primitive
     , objIndices    :: Maybe (IndexStream Buffer)
-    , objAttributes :: Trie (Stream Buffer)
-    , objUniSetter  :: Trie InputSetter
-    , objUniSetup   :: Trie GLUniform
+    , objAttributes :: Map ByteString (Stream Buffer)
+    , objUniSetter  :: Map ByteString InputSetter
+    , objUniSetup   :: Map ByteString GLUniform
     , objOrder      :: IORef Int
     , objEnabled    :: IORef Bool
     , objId         :: Int
@@ -130,10 +130,10 @@ data GLProgram
     = GLProgram
     { shaderObjects         :: [GLuint]
     , programObject         :: GLuint
-    , inputUniforms         :: Trie GLint
-    , inputTextures         :: Trie GLint   -- all input textures (render texture + uniform texture)
+    , inputUniforms         :: Map ByteString GLint
+    , inputTextures         :: Map ByteString GLint   -- all input textures (render texture + uniform texture)
     , inputTextureUniforms  :: Set ByteString
-    , inputStreams          :: Trie (GLuint,ByteString)
+    , inputStreams          :: Map ByteString (GLuint,ByteString)
     }
 
 data GLTexture
@@ -154,7 +154,7 @@ data GLStream
     = GLStream
     { glStreamCommands    :: IORef [GLObjectCommand]
     , glStreamPrimitive   :: Primitive
-    , glStreamAttributes  :: Trie (Stream Buffer)
+    , glStreamAttributes  :: Map ByteString (Stream Buffer)
     , glStreamProgram     :: ProgramName
     }
 
@@ -169,7 +169,7 @@ data GLRenderer
     , glInput           :: IORef (Maybe InputConnection)
     , glSlotNames       :: Vector ByteString
     , glVAO             :: GLuint
-    , glTexUnitMapping  :: Trie (IORef GLint)   -- maps texture uniforms to texture units
+    , glTexUnitMapping  :: Map ByteString (IORef GLint)   -- maps texture uniforms to texture units
     , glStreams         :: Vector GLStream
     }
 

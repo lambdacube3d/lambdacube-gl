@@ -21,9 +21,10 @@ import Data.Int
 import Foreign.Storable
 import Foreign.Marshal.Utils
 import System.IO.Unsafe
+import Data.Map (Map)
+import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.ByteString.Lazy as LB
-import qualified Data.Trie as T
 import qualified Data.Vector.Storable as V
 import qualified Data.Vector.Storable.Mutable as MV
 
@@ -55,7 +56,7 @@ data MeshPrimitive
 
 data Mesh
     = Mesh 
-    { mAttributes   :: T.Trie MeshAttribute
+    { mAttributes   :: Map ByteString MeshAttribute
     , mPrimitive    :: MeshPrimitive
     , mGPUData      :: Maybe GPUData
     }
@@ -63,7 +64,7 @@ data Mesh
 data GPUData
     = GPUData
     { dPrimitive    :: Primitive
-    , dStreams      :: T.Trie (Stream Buffer)
+    , dStreams      :: Map ByteString (Stream Buffer)
     , dIndices      :: Maybe (IndexStream Buffer)
     }
 
@@ -79,11 +80,9 @@ saveMesh n m = LB.writeFile n (encode m)
 addMeshToObjectArray :: GLStorage -> ByteString -> [ByteString] -> Mesh -> IO Object
 addMeshToObjectArray input slotName objUniNames (Mesh _ _ (Just (GPUData prim streams indices))) = do
     -- select proper attributes
-    let Just (SlotSchema slotPrim slotStreams) = T.lookup slotName $! T.slots $! T.schema input
-        filterStream n s
-            | T.member n slotStreams = Just s
-            | otherwise = Nothing
-    addObject input slotName prim indices (T.mapBy filterStream streams) objUniNames
+    let Just (ObjectArraySchema slotPrim slotStreams) = Map.lookup slotName $! objectArrays $! schema input
+        filterStream n _ = Map.member n slotStreams
+    addObject input slotName prim indices (Map.filterWithKey filterStream streams) objUniNames
 addMeshToObjectArray _ _ _ _ = fail "addMeshToObjectArray: only compiled mesh with GPUData is supported"
 
 withV w a f = w a (\p -> f $ castPtr p)
@@ -114,11 +113,11 @@ updateMesh :: Mesh -> [(ByteString,MeshAttribute)] -> Maybe MeshPrimitive -> IO 
 updateMesh (Mesh dMA dMP (Just (GPUData _ dS dI))) al mp = do
   -- check type match
   let arrayChk (Array t1 s1 _) (Array t2 s2 _) = t1 == t2 && s1 == s2
-      ok = and [T.member n dMA && arrayChk (meshAttrToArray a1) (meshAttrToArray a2) | (n,a1) <- al, let Just a2 = T.lookup n dMA]
+      ok = and [Map.member n dMA && arrayChk (meshAttrToArray a1) (meshAttrToArray a2) | (n,a1) <- al, let Just a2 = Map.lookup n dMA]
   if not ok then putStrLn "updateMesh: attribute mismatch!"
     else do
       forM_ al $ \(n,a) -> do
-        case T.lookup n dS of
+        case Map.lookup n dS of
           Just (Stream _ b i _ _) -> updateBuffer b [(i,meshAttrToArray a)]
           _ -> return ()
 {-
@@ -136,14 +135,14 @@ uploadMeshToGPU (Mesh attrs mPrim Nothing) = do
     let mkIndexBuf v = do
             iBuf <- compileBuffer [Array ArrWord32 (V.length v) $ withV V.unsafeWith v]
             return $! Just $! IndexStream iBuf 0 0 (V.length v)
-    vBuf <- compileBuffer [meshAttrToArray a | a <- T.elems attrs]
+    vBuf <- compileBuffer [meshAttrToArray a | a <- Map.elems attrs]
     (indices,prim) <- case mPrim of
         P_Points            -> return (Nothing,PointList)
         P_TriangleStrip     -> return (Nothing,TriangleStrip)
         P_Triangles         -> return (Nothing,TriangleList)
         P_TriangleStripI v  -> (,TriangleStrip) <$> mkIndexBuf v
         P_TrianglesI v      -> (,TriangleList) <$> mkIndexBuf v
-    let streams = T.fromList $! zipWith (\i (n,a) -> (n,meshAttrToStream vBuf i a)) [0..] (T.toList attrs)
+    let streams = Map.fromList $! zipWith (\i (n,a) -> (n,meshAttrToStream vBuf i a)) [0..] (Map.toList attrs)
         gpuData = GPUData prim streams indices
     return $! Mesh attrs mPrim (Just gpuData)
 
@@ -211,8 +210,8 @@ instance Binary MeshPrimitive where
             _ -> fail "no parse"
 
 instance Binary Mesh where
-    put (Mesh a b _) = put (T.toList a) >> put b
+    put (Mesh a b _) = put (Map.toList a) >> put b
     get = do
         a <- get
         b <- get
-        return $! Mesh (T.fromList a) b Nothing
+        return $! Mesh (Map.fromList a) b Nothing
