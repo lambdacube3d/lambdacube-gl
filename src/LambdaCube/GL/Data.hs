@@ -2,7 +2,6 @@ module LambdaCube.GL.Data where
 
 import Control.Applicative
 import Control.Monad
-import Data.ByteString.Char8 (ByteString)
 import Data.IORef
 import Data.List as L
 import Data.Maybe

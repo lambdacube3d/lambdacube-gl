@@ -3,14 +3,12 @@ module LambdaCube.GL.Input where
 import Control.Applicative
 import Control.Exception
 import Control.Monad
-import Data.ByteString.Char8 (ByteString,pack)
 import Data.IORef
 import Data.Map (Map)
 import Data.IntMap (IntMap)
 import Data.Vector (Vector,(//),(!))
 import Data.Word
 import Foreign
-import qualified Data.ByteString.Char8 as SB
 import qualified Data.IntMap as IM
 import qualified Data.Set as S
 import qualified Data.Map as Map
@@ -29,8 +27,8 @@ import qualified IR as IR
 schemaFromPipeline :: IR.Pipeline -> PipelineSchema
 schemaFromPipeline a = PipelineSchema (Map.fromList sl) (foldl Map.union Map.empty ul)
   where
-    (sl,ul) = unzip [( (pack sName,ObjectArraySchema sPrimitive (fmap cvt (toTrie sStreams)))
-                     , toTrie sUniforms
+    (sl,ul) = unzip [( (sName,ObjectArraySchema sPrimitive (fmap cvt sStreams))
+                     , sUniforms
                      )
                     | IR.Slot sName sStreams sUniforms sPrimitive _ <- V.toList $ IR.slots a
                     ]
@@ -38,7 +36,7 @@ schemaFromPipeline a = PipelineSchema (Map.fromList sl) (foldl Map.union Map.emp
         Just v  -> v
         Nothing -> error "internal error (schemaFromPipeline)"
 
-mkUniform :: [(ByteString,InputType)] -> IO (Map ByteString InputSetter, Map ByteString GLUniform)
+mkUniform :: [(String,InputType)] -> IO (Map String InputSetter, Map String GLUniform)
 mkUniform l = do
     unisAndSetters <- forM l $ \(n,t) -> do
         (uni, setter) <- mkUniformSetter t
@@ -70,7 +68,7 @@ disposeStorage :: GLStorage -> IO ()
 disposeStorage = error "not implemented: disposeStorage"
 
 -- object
-addObject :: GLStorage -> ByteString -> Primitive -> Maybe (IndexStream Buffer) -> Map ByteString (Stream Buffer) -> [ByteString] -> IO Object
+addObject :: GLStorage -> String -> Primitive -> Maybe (IndexStream Buffer) -> Map String (Stream Buffer) -> [String] -> IO Object
 addObject input slotName prim indices attribs uniformNames = do
     let sch = schema input
     forM_ uniformNames $ \n -> case Map.lookup n (uniforms sch) of
@@ -149,7 +147,7 @@ setObjectOrder p obj i = do
     writeIORef (objOrder obj) i
     modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot objs sorted _) -> GLSlot objs sorted Reorder
 
-objectUniformSetter :: Object -> Map ByteString InputSetter
+objectUniformSetter :: Object -> Map String InputSetter
 objectUniformSetter = objUniSetter
 
 setScreenSize :: GLStorage -> Word -> Word -> IO ()
@@ -177,7 +175,7 @@ sortSlotObjects p = V.forM_ (slotVector p) $ \slotRef -> do
                 return (ord,obj)
             doSort objs
 
-createObjectCommands :: Map ByteString (IORef GLint) -> Map ByteString GLUniform -> Object -> GLProgram -> [GLObjectCommand]
+createObjectCommands :: Map String (IORef GLint) -> Map String GLUniform -> Object -> GLProgram -> [GLObjectCommand]
 createObjectCommands texUnitMap topUnis obj prg = objUniCmds ++ objStreamCmds ++ [objDrawCmd]
   where
     -- object draw command
@@ -247,41 +245,41 @@ createObjectCommands texUnitMap topUnis obj prg = objUniCmds ++ objStreamCmds ++
             -- constant generic attribute
             constAttr -> GLSetVertexAttrib i constAttr
 
-nullSetter :: ByteString -> String -> a -> IO ()
+nullSetter :: String -> String -> a -> IO ()
 --nullSetter n t _ = return () -- Prelude.putStrLn $ "WARNING: unknown uniform: " ++ SB.unpack n ++ " :: " ++ t
-nullSetter n t _ = Prelude.putStrLn $ "WARNING: unknown uniform: " ++ SB.unpack n ++ " :: " ++ t
+nullSetter n t _ = Prelude.putStrLn $ "WARNING: unknown uniform: " ++ n ++ " :: " ++ t
 
-uniformBool  :: ByteString -> Map ByteString InputSetter -> SetterFun Bool
-uniformV2B   :: ByteString -> Map ByteString InputSetter -> SetterFun V2B
-uniformV3B   :: ByteString -> Map ByteString InputSetter -> SetterFun V3B
-uniformV4B   :: ByteString -> Map ByteString InputSetter -> SetterFun V4B
+uniformBool  :: String -> Map String InputSetter -> SetterFun Bool
+uniformV2B   :: String -> Map String InputSetter -> SetterFun V2B
+uniformV3B   :: String -> Map String InputSetter -> SetterFun V3B
+uniformV4B   :: String -> Map String InputSetter -> SetterFun V4B
 
-uniformWord  :: ByteString -> Map ByteString InputSetter -> SetterFun Word32
-uniformV2U   :: ByteString -> Map ByteString InputSetter -> SetterFun V2U
-uniformV3U   :: ByteString -> Map ByteString InputSetter -> SetterFun V3U
-uniformV4U   :: ByteString -> Map ByteString InputSetter -> SetterFun V4U
+uniformWord  :: String -> Map String InputSetter -> SetterFun Word32
+uniformV2U   :: String -> Map String InputSetter -> SetterFun V2U
+uniformV3U   :: String -> Map String InputSetter -> SetterFun V3U
+uniformV4U   :: String -> Map String InputSetter -> SetterFun V4U
 
-uniformInt   :: ByteString -> Map ByteString InputSetter -> SetterFun Int32
-uniformV2I   :: ByteString -> Map ByteString InputSetter -> SetterFun V2I
-uniformV3I   :: ByteString -> Map ByteString InputSetter -> SetterFun V3I
-uniformV4I   :: ByteString -> Map ByteString InputSetter -> SetterFun V4I
+uniformInt   :: String -> Map String InputSetter -> SetterFun Int32
+uniformV2I   :: String -> Map String InputSetter -> SetterFun V2I
+uniformV3I   :: String -> Map String InputSetter -> SetterFun V3I
+uniformV4I   :: String -> Map String InputSetter -> SetterFun V4I
 
-uniformFloat :: ByteString -> Map ByteString InputSetter -> SetterFun Float
-uniformV2F   :: ByteString -> Map ByteString InputSetter -> SetterFun V2F
-uniformV3F   :: ByteString -> Map ByteString InputSetter -> SetterFun V3F
-uniformV4F   :: ByteString -> Map ByteString InputSetter -> SetterFun V4F
+uniformFloat :: String -> Map String InputSetter -> SetterFun Float
+uniformV2F   :: String -> Map String InputSetter -> SetterFun V2F
+uniformV3F   :: String -> Map String InputSetter -> SetterFun V3F
+uniformV4F   :: String -> Map String InputSetter -> SetterFun V4F
 
-uniformM22F   :: ByteString -> Map ByteString InputSetter -> SetterFun M22F
-uniformM23F   :: ByteString -> Map ByteString InputSetter -> SetterFun M23F
-uniformM24F   :: ByteString -> Map ByteString InputSetter -> SetterFun M24F
-uniformM32F   :: ByteString -> Map ByteString InputSetter -> SetterFun M32F
-uniformM33F   :: ByteString -> Map ByteString InputSetter -> SetterFun M33F
-uniformM34F   :: ByteString -> Map ByteString InputSetter -> SetterFun M34F
-uniformM42F   :: ByteString -> Map ByteString InputSetter -> SetterFun M42F
-uniformM43F   :: ByteString -> Map ByteString InputSetter -> SetterFun M43F
-uniformM44F   :: ByteString -> Map ByteString InputSetter -> SetterFun M44F
+uniformM22F   :: String -> Map String InputSetter -> SetterFun M22F
+uniformM23F   :: String -> Map String InputSetter -> SetterFun M23F
+uniformM24F   :: String -> Map String InputSetter -> SetterFun M24F
+uniformM32F   :: String -> Map String InputSetter -> SetterFun M32F
+uniformM33F   :: String -> Map String InputSetter -> SetterFun M33F
+uniformM34F   :: String -> Map String InputSetter -> SetterFun M34F
+uniformM42F   :: String -> Map String InputSetter -> SetterFun M42F
+uniformM43F   :: String -> Map String InputSetter -> SetterFun M43F
+uniformM44F   :: String -> Map String InputSetter -> SetterFun M44F
 
-uniformFTexture2D   :: ByteString -> Map ByteString InputSetter -> SetterFun TextureData
+uniformFTexture2D   :: String -> Map String InputSetter -> SetterFun TextureData
 
 uniformBool n is = case Map.lookup n is of
     Just (SBool fun)    -> fun

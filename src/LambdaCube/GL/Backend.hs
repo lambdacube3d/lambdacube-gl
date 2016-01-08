@@ -1,18 +1,16 @@
-{-# LANGUAGE TupleSections, MonadComprehensions, ViewPatterns, RecordWildCards #-}
+{-# LANGUAGE TupleSections, MonadComprehensions, RecordWildCards #-}
 module LambdaCube.GL.Backend where
 
 import Control.Applicative
 import Control.Monad
 import Control.Monad.State
 import Data.Bits
-import Data.ByteString.Char8 (ByteString,pack)
 import Data.IORef
 import Data.IntMap (IntMap)
 import Data.Maybe (isNothing,fromJust)
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Vector (Vector,(!),(//))
-import qualified Data.ByteString.Char8 as SB
 import qualified Data.Foldable as F
 import qualified Data.IntMap as IM
 import qualified Data.Map as Map
@@ -23,6 +21,7 @@ import qualified Data.Vector.Storable as SV
 
 import Graphics.GL.Core33
 import Foreign
+import Foreign.C.String
 
 -- LC IR imports
 import Linear
@@ -196,13 +195,13 @@ clearRenderTarget values = do
 printGLStatus = checkGL >>= print
 printFBOStatus = checkFBO >>= print
 
-compileProgram :: Map ByteString InputType -> Program -> IO GLProgram
+compileProgram :: Map String InputType -> Program -> IO GLProgram
 compileProgram uniTrie p = do
     po <- glCreateProgram
     putStrLn $ "compile program: " ++ show po
     let createAndAttach src t = do
             o <- glCreateShader t
-            compileShader o $ map pack [src]
+            compileShader o [src]
             glAttachShader po o
             putStr "    + compile shader source: " >> printGLStatus
             return o
@@ -211,7 +210,7 @@ compileProgram uniTrie p = do
         Nothing -> []
         Just s  -> [createAndAttach s GL_GEOMETRY_SHADER]
 
-    forM_ (zip (V.toList $ programOutput p) [0..]) $ \(Parameter (pack -> n) t,i) -> SB.useAsCString n $ \pn -> do
+    forM_ (zip (V.toList $ programOutput p) [0..]) $ \(Parameter n t,i) -> withCString n $ \pn -> do
         putStrLn ("variable " ++ show n ++ " attached to color number #" ++ show i)
         glBindFragDataLocation po i $ castPtr pn
     putStr "    + setup shader output mapping: " >> printGLStatus
@@ -228,8 +227,8 @@ compileProgram uniTrie p = do
     (attributes,attributesType) <- queryStreams po
     print uniforms
     print attributes
-    let lcUniforms = (toTrie $ programUniforms p) `Map.union` (toTrie $ programInTextures p)
-        lcStreams = fmap ty (toTrie $ programStreams p)
+    let lcUniforms = (programUniforms p) `Map.union` (programInTextures p)
+        lcStreams = fmap ty (programStreams p)
         check a m = and $ map go $ Map.toList m
           where go (k,b) = case Map.lookup k a of
                   Nothing -> False
@@ -240,9 +239,9 @@ compileProgram uniTrie p = do
       fail "shader program uniform input mismatch!"
     unless (check lcStreams attributesType) $ fail $ "shader program stream input mismatch! " ++ show (attributesType,lcStreams)
     -- the public (user) pipeline and program input is encoded by the objectArrays, therefore the programs does not distinct the render and slot textures input
-    let inUniNames = toTrie $ programUniforms p
+    let inUniNames = programUniforms p
         inUniforms = L.filter (\(n,v) -> Map.member n inUniNames) $ Map.toList $ uniforms
-        inTextureNames = toTrie $ programInTextures p
+        inTextureNames = programInTextures p
         inTextures = L.filter (\(n,v) -> Map.member n inTextureNames) $ Map.toList $ uniforms
         texUnis = [n | (n,_) <- inTextures, Map.member n uniTrie]
     putStrLn $ "uniTrie: " ++ show (Map.keys uniTrie)
@@ -252,18 +251,18 @@ compileProgram uniTrie p = do
     putStrLn $ "inTextures: " ++ show inTextures
     putStrLn $ "texUnis: " ++ show texUnis
     let valA = Map.toList $ attributes
-        valB = Map.toList $ toTrie $ programStreams p
+        valB = Map.toList $ programStreams p
     putStrLn "------------"
     print $ Map.toList $ attributes
-    print $ Map.toList $ toTrie $ programStreams p
-    let lcStreamName = fmap name (toTrie $ programStreams p)
+    print $ Map.toList $ programStreams p
+    let lcStreamName = fmap name (programStreams p)
     return $ GLProgram
         { shaderObjects         = objs
         , programObject         = po
         , inputUniforms         = Map.fromList inUniforms
         , inputTextures         = Map.fromList inTextures
         , inputTextureUniforms  = S.fromList $ texUnis
-        , inputStreams          = Map.fromList [(n,(idx, pack attrName)) | (n,idx) <- Map.toList $ attributes, let Just attrName = Map.lookup n lcStreamName]
+        , inputStreams          = Map.fromList [(n,(idx, attrName)) | (n,idx) <- Map.toList $ attributes, let Just attrName = Map.lookup n lcStreamName]
         }
 
 compileSampler :: SamplerDescriptor -> IO GLSampler
@@ -409,11 +408,11 @@ compileStreamData s = do
         Triangles           -> TriangleList
         LinesAdjacency      -> LineListAdjacency
         TrianglesAdjacency  -> TriangleListAdjacency
-    , glStreamAttributes  = toTrie $ Map.fromList $ map toStream indexMap
+    , glStreamAttributes  = Map.fromList $ map toStream indexMap
     , glStreamProgram     = V.head $ streamPrograms s
     }
 
-createStreamCommands :: Map ByteString (IORef GLint) -> Map ByteString GLUniform -> Map ByteString (Stream Buffer) -> Primitive -> GLProgram -> [GLObjectCommand]
+createStreamCommands :: Map String (IORef GLint) -> Map String GLUniform -> Map String (Stream Buffer) -> Primitive -> GLProgram -> [GLObjectCommand]
 createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds ++ streamCmds ++ [drawCmd]
   where
     -- object draw command
@@ -483,7 +482,7 @@ allocRenderer p = do
     prgs <- V.mapM (compileProgram uniTrie) $ programs p
     -- texture unit mapping ioref trie
     -- texUnitMapRefs :: Map UniformName (IORef TextureUnit)
-    texUnitMapRefs <- Map.fromList <$> mapM (\k -> (k,) <$> newIORef 0) (S.toList $ S.fromList $ concat $ V.toList $ V.map (Map.keys . toTrie . programInTextures) $ programs p)
+    texUnitMapRefs <- Map.fromList <$> mapM (\k -> (k,) <$> newIORef 0) (S.toList $ S.fromList $ concat $ V.toList $ V.map (Map.keys . programInTextures) $ programs p)
     let (cmds,st) = runState (mapM (compileCommand texUnitMapRefs smps texs trgs prgs) $ V.toList $ commands p) initCGState
     input <- newIORef Nothing
     -- default Vertex Array Object
@@ -497,7 +496,7 @@ allocRenderer p = do
         , glCommands        = cmds
         , glSlotPrograms    = V.map (V.toList . slotPrograms) $ IR.slots p
         , glInput           = input
-        , glSlotNames       = V.map (pack . slotName) $ IR.slots p
+        , glSlotNames       = V.map slotName $ IR.slots p
         , glVAO             = vao
         , glTexUnitMapping  = texUnitMapRefs
         , glStreams         = strs
@@ -530,7 +529,7 @@ data PipelineSchema
     }
     deriving Show
 -}
-isSubTrie :: (a -> a -> Bool) -> Map ByteString a -> Map ByteString a -> Bool
+isSubTrie :: (a -> a -> Bool) -> Map String a -> Map String a -> Bool
 isSubTrie eqFun universe subset = and [isMember a (Map.lookup n universe) | (n,a) <- Map.toList subset]
   where
     isMember a Nothing  = False
@@ -702,7 +701,7 @@ renderSlot cmds = forM_ cmds $ \cmd -> do
                                                             glDisableVertexAttribArray idx
                                                             setVertexAttrib idx val
     isOk <- checkGL
-    putStrLn $ SB.unpack isOk ++ " - " ++ show cmd
+    putStrLn $ isOk ++ " - " ++ show cmd
 
 renderFrame :: GLRenderer -> IO ()
 renderFrame glp = do
@@ -752,7 +751,7 @@ renderFrame glp = do
             GLLoadImage
             -}
         isOk <- checkGL
-        putStrLn $ SB.unpack isOk ++ " - " ++ show cmd
+        putStrLn $ isOk ++ " - " ++ show cmd
 
 data CGState
     = CGState
@@ -769,7 +768,7 @@ initCGState = CGState
 
 type CG a = State CGState a
 
-compileCommand :: Map ByteString (IORef GLint) -> Vector GLSampler -> Vector GLTexture -> Vector GLRenderTarget -> Vector GLProgram -> Command -> CG GLCommand
+compileCommand :: Map String (IORef GLint) -> Vector GLSampler -> Vector GLTexture -> Vector GLRenderTarget -> Vector GLProgram -> Command -> CG GLCommand
 compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
     SetRasterContext rCtx       -> return $ GLSetRasterContext rCtx
     SetAccumulationContext aCtx -> return $ GLSetAccumulationContext aCtx
@@ -780,9 +779,9 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
     SetSamplerUniform n tu      -> do
                                     modify (\s@CGState{..} -> s {samplerUniforms = Map.insert n tu samplerUniforms})
                                     p <- currentProgram <$> get
-                                    case Map.lookup (pack n) (inputTextures $ programs ! p) of
+                                    case Map.lookup n (inputTextures $ programs ! p) of
                                         Nothing -> fail $ "internal error (SetSamplerUniform)! - " ++ show cmd
-                                        Just i  -> case Map.lookup (pack n) texUnitMap of
+                                        Just i  -> case Map.lookup n texUnitMap of
                                             Nothing -> fail $ "internal error (SetSamplerUniform - IORef)! - " ++ show cmd
                                             Just r  -> return $ GLSetSamplerUniform i (fromIntegral tu) r
     SetTexture tu t             -> do

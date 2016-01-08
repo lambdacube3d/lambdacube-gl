@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module LambdaCube.GL.Util (
     queryUniforms,
     queryStreams,
@@ -27,18 +26,16 @@ module LambdaCube.GL.Util (
     compileTexture,
     primitiveToFetchPrimitive,
     primitiveToGLType,
-    inputTypeToTextureTarget,
-    toTrie
+    inputTypeToTextureTarget
 ) where
 
 import Control.Applicative
 import Control.Exception
 import Control.Monad
-import Data.ByteString.Char8 (ByteString,pack,unpack)
 import Data.IORef
 import Data.List as L
 import Foreign
-import qualified Data.ByteString.Char8 as SB
+import Foreign.C.String
 import qualified Data.Vector as V
 import Data.Vector.Unboxed.Mutable (IOVector)
 import qualified Data.Vector.Unboxed.Mutable as MV
@@ -50,9 +47,6 @@ import Linear
 import IR
 import LambdaCube.GL.Type
 
-toTrie :: Map String a -> Map ByteString a
-toTrie m = Map.fromList [(pack k,v) | (k,v) <- Map.toList m]
-
 setSampler :: GLint -> Int32 -> IO ()
 setSampler i v = glUniform1i i $ fromIntegral v
 
@@ -61,7 +55,7 @@ z3 = V3 0 0 0 :: V3F
 z4 = V4 0 0 0 0 :: V4F
 
 -- uniform functions
-queryUniforms :: GLuint -> IO (Map ByteString GLint, Map ByteString InputType)
+queryUniforms :: GLuint -> IO (Map String GLint, Map String InputType)
 queryUniforms po = do
     ul <- getNameTypeSize po glGetActiveUniform glGetUniformLocation GL_ACTIVE_UNIFORMS GL_ACTIVE_UNIFORM_MAX_LENGTH
     let uNames = [n | (n,_,_,_) <- ul]
@@ -136,7 +130,7 @@ setUniform i ty ref = do
         _   -> fail $ "internal error (setUniform)! - " ++ show ty
 
 -- attribute functions
-queryStreams :: GLuint -> IO (Map ByteString GLuint, Map ByteString InputType)
+queryStreams :: GLuint -> IO (Map String GLuint, Map String InputType)
 queryStreams po = do
     al <- getNameTypeSize po glGetActiveAttrib glGetAttribLocation GL_ACTIVE_ATTRIBUTES GL_ACTIVE_ATTRIBUTE_MAX_LENGTH
     let aNames = [n | (n,_,_,_) <- al]
@@ -191,13 +185,13 @@ setAV4F i v   = with v $! \p -> glVertexAttrib4fv i $! castPtr p
 
 -- result list: [(name string,location,gl type,component count)]
 getNameTypeSize :: GLuint -> (GLuint -> GLuint -> GLsizei -> Ptr GLsizei -> Ptr GLint -> Ptr GLenum -> Ptr GLchar -> IO ())
-                   -> (GLuint -> Ptr GLchar -> IO GLint) -> GLenum -> GLenum -> IO [(ByteString,GLint,GLenum,GLint)]
+                   -> (GLuint -> Ptr GLchar -> IO GLint) -> GLenum -> GLenum -> IO [(String,GLint,GLenum,GLint)]
 getNameTypeSize o f g enum enumLen = do
     nameLen <- glGetProgramiv1 enumLen o
     allocaArray (fromIntegral nameLen) $! \namep -> alloca $! \sizep -> alloca $! \typep -> do
         n <- glGetProgramiv1 enum o
         forM [0..n-1] $! \i -> f o (fromIntegral i) (fromIntegral nameLen) nullPtr sizep typep namep >>
-            (,,,) <$> SB.packCString (castPtr namep) <*> g o namep <*> peek typep <*> peek sizep
+            (,,,) <$> peekCString (castPtr namep) <*> g o namep <*> peek typep <*> peek sizep
 
 fromGLType :: (GLenum,GLint) -> InputType
 fromGLType (t,1)
@@ -272,8 +266,8 @@ printShaderLog o = do
       alloca $ \sizePtr -> allocaArray (fromIntegral i) $! \ps -> do
         glGetShaderInfoLog o (fromIntegral i) sizePtr ps
         size <- peek sizePtr
-        log <- SB.packCStringLen (castPtr ps, fromIntegral size)
-        SB.putStrLn log
+        log <- peekCStringLen (castPtr ps, fromIntegral size)
+        putStrLn log
 
 glGetShaderiv1 :: GLenum -> GLuint -> IO GLint
 glGetShaderiv1 pname o = alloca $! \pi -> glGetShaderiv o pname pi >> peek pi
@@ -288,18 +282,18 @@ printProgramLog o = do
       alloca $ \sizePtr -> allocaArray (fromIntegral i) $! \ps -> do
         glGetProgramInfoLog o (fromIntegral i) sizePtr ps
         size <- peek sizePtr
-        log <- SB.packCStringLen (castPtr ps, fromIntegral size)
-        SB.putStrLn log
+        log <- peekCStringLen (castPtr ps, fromIntegral size)
+        putStrLn log
 
-compileShader :: GLuint -> [ByteString] -> IO ()
-compileShader o srcl = withMany SB.useAsCString srcl $! \l -> withArray l $! \p -> do
+compileShader :: GLuint -> [String] -> IO ()
+compileShader o srcl = withMany withCString srcl $! \l -> withArray l $! \p -> do
     glShaderSource o (fromIntegral $! length srcl) (castPtr p) nullPtr
     glCompileShader o
     printShaderLog o
     status <- glGetShaderiv1 GL_COMPILE_STATUS o
     when (status /= fromIntegral GL_TRUE) $ fail "compileShader failed!"
 
-checkGL :: IO ByteString
+checkGL :: IO String
 checkGL = do
     let f e | e == GL_INVALID_ENUM                  = "INVALID_ENUM"
             | e == GL_INVALID_VALUE                 = "INVALID_VALUE"
@@ -478,7 +472,7 @@ Texture and renderbuffer color formats (R):
 glGetIntegerv1 :: GLenum -> IO GLint
 glGetIntegerv1 e = alloca $ \pi -> glGetIntegerv e pi >> peek pi
 
-checkFBO :: IO ByteString
+checkFBO :: IO String
 checkFBO = do
     let f e | e == GL_FRAMEBUFFER_UNDEFINED                 = "FRAMEBUFFER_UNDEFINED"
             | e == GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT     = "FRAMEBUFFER_INCOMPLETE_ATTACHMENT"

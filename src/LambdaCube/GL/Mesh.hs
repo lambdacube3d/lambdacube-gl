@@ -15,7 +15,6 @@ module LambdaCube.GL.Mesh (
 import Control.Applicative
 import Control.Monad
 import Data.Binary
-import Data.ByteString.Char8 (ByteString)
 import Foreign.Ptr
 import Data.Int
 import Foreign.Storable
@@ -23,10 +22,10 @@ import Foreign.Marshal.Utils
 import System.IO.Unsafe
 import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.ByteString.Char8 as SB
-import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector.Storable as V
 import qualified Data.Vector.Storable.Mutable as MV
+import qualified Data.ByteString.Char8 as SB
+import qualified Data.ByteString.Lazy as LB
 
 import LambdaCube.GL
 import LambdaCube.GL.Type as T
@@ -56,7 +55,7 @@ data MeshPrimitive
 
 data Mesh
     = Mesh 
-    { mAttributes   :: Map ByteString MeshAttribute
+    { mAttributes   :: Map String MeshAttribute
     , mPrimitive    :: MeshPrimitive
     , mGPUData      :: Maybe GPUData
     }
@@ -64,7 +63,7 @@ data Mesh
 data GPUData
     = GPUData
     { dPrimitive    :: Primitive
-    , dStreams      :: Map ByteString (Stream Buffer)
+    , dStreams      :: Map String (Stream Buffer)
     , dIndices      :: Maybe (IndexStream Buffer)
     }
 
@@ -77,7 +76,7 @@ loadMesh n = uploadMeshToGPU =<< loadMesh' n
 saveMesh :: String -> Mesh -> IO ()
 saveMesh n m = LB.writeFile n (encode m)
 
-addMeshToObjectArray :: GLStorage -> ByteString -> [ByteString] -> Mesh -> IO Object
+addMeshToObjectArray :: GLStorage -> String -> [String] -> Mesh -> IO Object
 addMeshToObjectArray input slotName objUniNames (Mesh _ _ (Just (GPUData prim streams indices))) = do
     -- select proper attributes
     let Just (ObjectArraySchema slotPrim slotStreams) = Map.lookup slotName $! objectArrays $! schema input
@@ -109,7 +108,7 @@ meshAttrToStream b i (A_M44F  v) = Stream Attribute_M44F b i 0 (V.length v)
 meshAttrToStream b i (A_Int   v) = Stream Attribute_Int b i 0 (V.length v)
 meshAttrToStream b i (A_Word  v) = Stream Attribute_Word b i 0 (V.length v)
 
-updateMesh :: Mesh -> [(ByteString,MeshAttribute)] -> Maybe MeshPrimitive -> IO ()
+updateMesh :: Mesh -> [(String,MeshAttribute)] -> Maybe MeshPrimitive -> IO ()
 updateMesh (Mesh dMA dMP (Just (GPUData _ dS dI))) al mp = do
   -- check type match
   let arrayChk (Array t1 s1 _) (Array t2 s2 _) = t1 == t2 && s1 == s2
