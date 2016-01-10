@@ -1,4 +1,4 @@
-{-# LANGUAGE PackageImports, LambdaCase #-}
+{-# LANGUAGE PackageImports, LambdaCase, OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import qualified Data.Map as Map
@@ -11,39 +11,6 @@ import Codec.Picture as Juicy
 
 import LambdaCube.Compiler.Driver as LambdaCube -- compiler
 
-----
-import Control.Monad.Writer
-
-{-
-data ObjectArraySchema
-    = ObjectArraySchema
-    { primitive     :: FetchPrimitive
-    , attributes    :: Map String StreamType
-    }
-    deriving Show
-
-data PipelineSchema
-    = PipelineSchema
-    { objectArrays  :: Map String ObjectArraySchema
-    , uniforms      :: Map String InputType
-    }
--}
-
-
-a @: b = tell [(a,b)]
-defObjectArray n p m = tell [PipelineSchema (Map.singleton n $ ObjectArraySchema p $ Map.fromList $ execWriter m) mempty]
-defUniforms m = tell [PipelineSchema mempty $ Map.fromList $ execWriter m]
-makeSchema a = head $ execWriter a :: PipelineSchema
-
-sch = makeSchema $ do
-  defObjectArray "objects" Triangles $ do
-    "position"  @: Attribute_V4F
-    "uv"        @: Attribute_V2F
-  defUniforms $ do
-    "time"           @: Float
-    "diffuseTexture" @: FTexture2D
-
------
 main :: IO ()
 main = do
     -- compile hello.lc to graphics pipeline description
@@ -56,7 +23,7 @@ main = do
     -- setup render data
     let inputSchema = makeSchema $ do
           defObjectArray "objects" Triangles $ do
-            "position"  @: Attribute_V4F
+            "position"  @: Attribute_V2F
             "uv"        @: Attribute_V2F
           defUniforms $ do
             "time"           @: Float
@@ -80,11 +47,11 @@ main = do
         where loop = do
                 -- update graphics input
                 GLFW.getWindowSize win >>= \(w,h) -> LambdaCubeGL.setScreenSize storage (fromIntegral w) (fromIntegral h)
-                {-
                 LambdaCubeGL.updateUniforms storage $ do
-                  "time" @= fromJust <$> GLFW.getTime
                   "diffuseTexture" @= return textureData
-                -}
+                  "time" @= do
+                              Just t <- GLFW.getTime
+                              return (realToFrac t :: Float)
                 -- render
                 LambdaCubeGL.renderFrame renderer
                 GLFW.swapBuffers win

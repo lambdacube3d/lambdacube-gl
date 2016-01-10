@@ -1,0 +1,12 @@
+sampler = Sampler PointFilter MirroredRepeat (Texture2DSlot "diffuseTexture")
+main = let
+  emptyFB           = FrameBuffer (colorImage1 (V4 0.0 0.0 0.4 1.0))
+  rasterCtx         = TriangleCtx CullNone PolygonFill NoOffset LastVertex
+  fragmentCtx       = AccumulationContext (ColorOp NoBlending (V4 True True True True))
+  vertexShader (p,uv) = VertexOut (V4 p%x p%y (-1) 1) 1.0 () (Smooth uv)
+  vertexStream      = Fetch "objects" Triangles (Attribute "position" :: Vec 2 Float, Attribute "uv" :: Vec 2 Float)
+  primitiveStream   = Transform vertexShader vertexStream
+  fragmentStream    = Rasterize rasterCtx primitiveStream
+  fragmentShader uv = FragmentOut $ texture2D sampler uv
+  frame             = Accumulate fragmentCtx PassAll fragmentShader fragmentStream emptyFB
+ in ScreenOut frame

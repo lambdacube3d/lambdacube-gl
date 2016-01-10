@@ -696,12 +696,12 @@ renderSlot cmds = forM_ cmds $ \cmd -> do
                                                                 texUnit <- readIORef tuRef
                                                                 glActiveTexture $ GL_TEXTURE0 + fromIntegral texUnit
                                                                 glBindTexture txTarget txObj
-                                                                putStrLn $ "to texture unit " ++ show texUnit ++ " texture object " ++ show txObj
+                                                                --putStrLn $ "to texture unit " ++ show texUnit ++ " texture object " ++ show txObj
         GLSetVertexAttrib idx val                       -> do
                                                             glDisableVertexAttribArray idx
                                                             setVertexAttrib idx val
-    isOk <- checkGL
-    putStrLn $ isOk ++ " - " ++ show cmd
+    --isOk <- checkGL
+    --putStrLn $ isOk ++ " - " ++ show cmd
 
 renderFrame :: GLRenderer -> IO ()
 renderFrame glp = do
@@ -750,8 +750,8 @@ renderFrame glp = do
             GLSaveImage
             GLLoadImage
             -}
-        isOk <- checkGL
-        putStrLn $ isOk ++ " - " ++ show cmd
+        --isOk <- checkGL
+        --putStrLn $ isOk ++ " - " ++ show cmd
 
 data CGState
     = CGState

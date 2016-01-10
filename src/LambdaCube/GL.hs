@@ -28,6 +28,7 @@ module LambdaCube.GL (
     uploadTexture2DToGPU',
 
     -- GL: Renderer, Storage, Object
+    GLUniformName,
     GLRenderer,
     GLStorage,
     Object,
@@ -48,7 +49,6 @@ module LambdaCube.GL (
     setObjectOrder,
     objectUniformSetter,
     setScreenSize,
-    sortSlotObjects,
 
     uniformBool,
     uniformV2B,
@@ -80,7 +80,16 @@ module LambdaCube.GL (
     uniformM43F,
     uniformM44F,
 
-    uniformFTexture2D
+    uniformFTexture2D,
+
+    -- schema builder utility functions
+    (@:),
+    defObjectArray,
+    defUniforms,
+    makeSchema,
+
+    (@=),
+    updateUniforms
 ) where
 
 import LambdaCube.GL.Type

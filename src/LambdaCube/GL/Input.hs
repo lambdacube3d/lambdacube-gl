@@ -1,8 +1,10 @@
+{-# LANGUAGE FlexibleContexts #-}
 module LambdaCube.GL.Input where
 
 import Control.Applicative
 import Control.Exception
 import Control.Monad
+import Control.Monad.Writer
 import Data.IORef
 import Data.Map (Map)
 import Data.IntMap (IntMap)
@@ -68,7 +70,7 @@ allocStorage sch = do
         }
 
 disposeStorage :: GLStorage -> IO ()
-disposeStorage = error "not implemented: disposeStorage"
+disposeStorage _ = putStrLn "not implemented: disposeStorage"
 
 -- object
 addObject :: GLStorage -> String -> Primitive -> Maybe (IndexStream Buffer) -> Map String (Stream Buffer) -> [String] -> IO Object
@@ -137,6 +139,7 @@ addObject input slotName prim indices attribs uniformNames = do
                     let emptyV = V.replicate (V.length $ glPrograms p) []
                     return $ emptyV // [(prgIdx,createObjectCommands (glTexUnitMapping p) topUnis obj (glPrograms p ! prgIdx))| prgIdx <- glSlotPrograms p ! pSlotIdx]
     writeIORef cmdsRef cmds
+    sortSlotObjects input
     return obj
 
 removeObject :: GLStorage -> Object -> IO ()
@@ -149,6 +152,7 @@ setObjectOrder :: GLStorage -> Object -> Int -> IO ()
 setObjectOrder p obj i = do
     writeIORef (objOrder obj) i
     modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot objs sorted _) -> GLSlot objs sorted Reorder
+    sortSlotObjects p
 
 objectUniformSetter :: Object -> Map GLUniformName InputSetter
 objectUniformSetter = objUniSetter
@@ -387,3 +391,30 @@ uniformM44F n is = case Map.lookup n is of
 uniformFTexture2D n is = case Map.lookup n is of
     Just (SFTexture2D fun)    -> fun
     _   -> nullSetter n "FTexture2D"
+
+a @: b = tell [(a,b)]
+defObjectArray n p m = mapM_ tell [PipelineSchema (Map.singleton n $ ObjectArraySchema p $ Map.singleton a t) mempty | (a,t) <- execWriter m]
+defUniforms m = tell $ PipelineSchema mempty $ Map.fromList $ execWriter m
+makeSchema a = execWriter a :: PipelineSchema
+
+unionObjectArraySchema (ObjectArraySchema a1 b1) (ObjectArraySchema a2 b2) =
+  ObjectArraySchema (if a1 == a2 then a1 else error $ "object array schema primitive mismatch " ++ show (a1,a2))
+                    (Map.unionWith (\a b -> if a == b then a else error $ "object array schema attribute type mismatch " ++ show (a,b)) b1 b2)
+
+instance Monoid PipelineSchema where
+  mempty = PipelineSchema mempty mempty
+  mappend (PipelineSchema a1 b1) (PipelineSchema a2 b2) =
+    PipelineSchema (Map.unionWith unionObjectArraySchema a1 a2) (Map.unionWith (\a b -> if a == b then a else error $ "schema type mismatch " ++ show (a,b)) b1 b2)
+
+type UniM = Writer [GLStorage -> IO ()]
+
+class UniformSetter a where
+  (@=) :: GLUniformName -> IO a -> UniM ()
+
+instance UniformSetter Float where
+  n @= act = tell [\s -> let f = uniformFloat n (uniformSetter s) in f =<< act]
+
+instance UniformSetter TextureData where
+  n @= act = tell [\s -> let f = uniformFTexture2D n (uniformSetter s) in f =<< act]
+
+updateUniforms storage m = sequence_ $ let l = map ($ storage) $ execWriter m in l
