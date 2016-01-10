@@ -14,6 +14,8 @@ import qualified Data.Set as S
 import qualified Data.Map as Map
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
+import Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Char8 as SB
 
 import Graphics.GL.Core33
 
@@ -36,7 +38,7 @@ schemaFromPipeline a = PipelineSchema (Map.fromList sl) (foldl Map.union Map.emp
         Just v  -> v
         Nothing -> error "internal error (schemaFromPipeline)"
 
-mkUniform :: [(String,InputType)] -> IO (Map String InputSetter, Map String GLUniform)
+mkUniform :: [(String,InputType)] -> IO (Map GLUniformName InputSetter, Map String GLUniform)
 mkUniform l = do
     unisAndSetters <- forM l $ \(n,t) -> do
         (uni, setter) <- mkUniformSetter t
@@ -147,7 +149,7 @@ setObjectOrder p obj i = do
     writeIORef (objOrder obj) i
     modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot objs sorted _) -> GLSlot objs sorted Reorder
 
-objectUniformSetter :: Object -> Map String InputSetter
+objectUniformSetter :: Object -> Map GLUniformName InputSetter
 objectUniformSetter = objUniSetter
 
 setScreenSize :: GLStorage -> Word -> Word -> IO ()
@@ -245,41 +247,41 @@ createObjectCommands texUnitMap topUnis obj prg = objUniCmds ++ objStreamCmds ++
             -- constant generic attribute
             constAttr -> GLSetVertexAttrib i constAttr
 
-nullSetter :: String -> String -> a -> IO ()
+nullSetter :: GLUniformName -> String -> a -> IO ()
 --nullSetter n t _ = return () -- Prelude.putStrLn $ "WARNING: unknown uniform: " ++ SB.unpack n ++ " :: " ++ t
-nullSetter n t _ = Prelude.putStrLn $ "WARNING: unknown uniform: " ++ n ++ " :: " ++ t
+nullSetter n t _ = Prelude.putStrLn $ "WARNING: unknown uniform: " ++ show n ++ " :: " ++ t
 
-uniformBool  :: String -> Map String InputSetter -> SetterFun Bool
-uniformV2B   :: String -> Map String InputSetter -> SetterFun V2B
-uniformV3B   :: String -> Map String InputSetter -> SetterFun V3B
-uniformV4B   :: String -> Map String InputSetter -> SetterFun V4B
+uniformBool  :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun Bool
+uniformV2B   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V2B
+uniformV3B   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V3B
+uniformV4B   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V4B
 
-uniformWord  :: String -> Map String InputSetter -> SetterFun Word32
-uniformV2U   :: String -> Map String InputSetter -> SetterFun V2U
-uniformV3U   :: String -> Map String InputSetter -> SetterFun V3U
-uniformV4U   :: String -> Map String InputSetter -> SetterFun V4U
+uniformWord  :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun Word32
+uniformV2U   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V2U
+uniformV3U   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V3U
+uniformV4U   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V4U
 
-uniformInt   :: String -> Map String InputSetter -> SetterFun Int32
-uniformV2I   :: String -> Map String InputSetter -> SetterFun V2I
-uniformV3I   :: String -> Map String InputSetter -> SetterFun V3I
-uniformV4I   :: String -> Map String InputSetter -> SetterFun V4I
+uniformInt   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun Int32
+uniformV2I   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V2I
+uniformV3I   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V3I
+uniformV4I   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V4I
 
-uniformFloat :: String -> Map String InputSetter -> SetterFun Float
-uniformV2F   :: String -> Map String InputSetter -> SetterFun V2F
-uniformV3F   :: String -> Map String InputSetter -> SetterFun V3F
-uniformV4F   :: String -> Map String InputSetter -> SetterFun V4F
+uniformFloat :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun Float
+uniformV2F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V2F
+uniformV3F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V3F
+uniformV4F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V4F
 
-uniformM22F   :: String -> Map String InputSetter -> SetterFun M22F
-uniformM23F   :: String -> Map String InputSetter -> SetterFun M23F
-uniformM24F   :: String -> Map String InputSetter -> SetterFun M24F
-uniformM32F   :: String -> Map String InputSetter -> SetterFun M32F
-uniformM33F   :: String -> Map String InputSetter -> SetterFun M33F
-uniformM34F   :: String -> Map String InputSetter -> SetterFun M34F
-uniformM42F   :: String -> Map String InputSetter -> SetterFun M42F
-uniformM43F   :: String -> Map String InputSetter -> SetterFun M43F
-uniformM44F   :: String -> Map String InputSetter -> SetterFun M44F
+uniformM22F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun M22F
+uniformM23F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun M23F
+uniformM24F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun M24F
+uniformM32F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun M32F
+uniformM33F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun M33F
+uniformM34F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun M34F
+uniformM42F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun M42F
+uniformM43F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun M43F
+uniformM44F   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun M44F
 
-uniformFTexture2D   :: String -> Map String InputSetter -> SetterFun TextureData
+uniformFTexture2D   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun TextureData
 
 uniformBool n is = case Map.lookup n is of
     Just (SBool fun)    -> fun

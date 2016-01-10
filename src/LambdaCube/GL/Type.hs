@@ -10,11 +10,14 @@ import Data.Vector (Vector)
 import Data.Word
 import Foreign.Ptr
 import Foreign.Storable
+import Data.ByteString
 
 import Graphics.GL.Core33
 
 import Linear
 import IR
+
+type GLUniformName = String -- ByteString
 
 ---------------
 -- Input API --
@@ -101,7 +104,7 @@ data GLStorage
     , slotMap       :: Map String SlotName
     , slotVector    :: Vector (IORef GLSlot)
     , objSeed       :: IORef Int
-    , uniformSetter :: Map String InputSetter
+    , uniformSetter :: Map GLUniformName InputSetter
     , uniformSetup  :: Map String GLUniform
     , screenSize    :: IORef (Word,Word)
     , pipelines     :: IORef (Vector (Maybe GLRenderer)) -- attached pipelines
@@ -113,7 +116,7 @@ data Object -- internal type
     , objPrimitive  :: Primitive
     , objIndices    :: Maybe (IndexStream Buffer)
     , objAttributes :: Map String (Stream Buffer)
-    , objUniSetter  :: Map String InputSetter
+    , objUniSetter  :: Map GLUniformName InputSetter
     , objUniSetup   :: Map String GLUniform
     , objOrder      :: IORef Int
     , objEnabled    :: IORef Bool
