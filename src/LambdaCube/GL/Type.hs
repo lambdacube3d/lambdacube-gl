@@ -17,7 +17,7 @@ import Graphics.GL.Core33
 import Linear
 import IR
 
-type GLUniformName = String -- ByteString
+type GLUniformName = ByteString
 
 ---------------
 -- Input API --

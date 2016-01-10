@@ -8,6 +8,7 @@ import Data.Map (Map)
 import Data.IntMap (IntMap)
 import Data.Vector (Vector,(//),(!))
 import Data.Word
+import Data.String
 import Foreign
 import qualified Data.IntMap as IM
 import qualified Data.Set as S
@@ -42,7 +43,7 @@ mkUniform :: [(String,InputType)] -> IO (Map GLUniformName InputSetter, Map Stri
 mkUniform l = do
     unisAndSetters <- forM l $ \(n,t) -> do
         (uni, setter) <- mkUniformSetter t
-        return ((n,uni),(n,setter))
+        return ((n,uni),(fromString n,setter))
     let (unis,setters) = unzip unisAndSetters
     return (Map.fromList setters, Map.fromList unis)
 
