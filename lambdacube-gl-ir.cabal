@@ -1,5 +1,5 @@
 name:                lambdacube-gl-ir
-version:             0.2.0.0
+version:             0.3.0.0
 -- synopsis:            
 -- description:         
 homepage:            lambdacube3d.com
@@ -15,8 +15,6 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:
-    --SampleIR
-    -- Backend
     LambdaCube.GL
     LambdaCube.GL.Backend
     LambdaCube.GL.Data

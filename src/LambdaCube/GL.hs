@@ -10,6 +10,8 @@ module LambdaCube.GL (
     Stream(..),
     StreamSetter,
     StreamType(..),
+    FetchPrimitive(..),
+    InputType(..),
     Primitive(..),
     SetterFun,
     TextureData,
