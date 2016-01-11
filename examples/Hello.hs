@@ -1,5 +1,4 @@
 {-# LANGUAGE PackageImports, LambdaCase, OverloadedStrings #-}
-{-# LANGUAGE FlexibleContexts #-}
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import qualified Data.Map as Map
 import qualified Data.Vector.Storable as SV
