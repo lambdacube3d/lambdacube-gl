@@ -8,14 +8,12 @@ import "lambdacube-gl-ir" LambdaCube.GL.Mesh as LambdaCubeGL
 
 import Codec.Picture as Juicy
 
-import LambdaCube.Compiler.Driver as LambdaCube -- compiler
+import Data.Aeson
+import qualified Data.ByteString as SB
 
 main :: IO ()
 main = do
-    -- compile hello.lc to graphics pipeline description
-    pipelineDesc <- LambdaCube.compileMain ["."] OpenGL33 "hello" >>= \case
-      Left err  -> fail $ "compile error:\n" ++ err
-      Right pd  -> return pd
+    Just pipelineDesc <- decodeStrict <$> SB.readFile "hello.json"
 
     win <- initWindow "LambdaCube 3D DSL Hello World" 640 640
 
