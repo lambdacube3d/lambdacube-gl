@@ -1,13 +1,16 @@
-time = Uniform "time" :: Float
-sampler = Sampler PointFilter MirroredRepeat (Texture2DSlot "diffuseTexture")
-main = let
-  emptyFB           = FrameBuffer (colorImage1 (V4 0.0 0.0 0.4 1.0))
-  rasterCtx         = TriangleCtx CullNone PolygonFill NoOffset LastVertex
-  fragmentCtx       = (ColorOp NoBlending (V4 True True True True))
-  vertexShader (p,uv) = VertexOut (rotMatrixZ time *. (V4 p%x p%y (-1) 1)) 1.0 () (Smooth uv)
-  vertexStream      = Fetch @Triangle "objects" (Attribute "position" :: Vec 2 Float, Attribute "uv" :: Vec 2 Float)
-  primitiveStream   = Transform vertexShader vertexStream
-  fragmentStream    = Rasterize rasterCtx primitiveStream
-  fragmentShader    = FragmentShader $ \uv -> texture2D sampler uv
-  frame             = accumulate fragmentCtx PassAll fragmentShader fragmentStream emptyFB
- in ScreenOut frame
+makeFrame (time :: Float)
+          (texture :: Texture)
+          (prims :: Stream (Primitive Triangle (Vec 2 Float, Vec 2 Float)))
+
+    = imageFrame (emptyColorImage (V4 0 0 0.4 1))
+  `overlay`
+      prims
+    & mapPrimitives (\(p,uv) -> (rotMatrixZ time *. (V4 p%x p%y (-1) 1), uv))
+    & rasterizePrimitives (TriangleCtx CullNone PolygonFill NoOffset LastVertex) Smooth
+    & mapFragments (\uv -> texture2D (Sampler PointFilter MirroredRepeat texture) uv)
+    & accumulateWith (ColorOp NoBlending (V4 True True True True))
+
+main = renderFrame $
+   makeFrame (Uniform "time")
+             (Texture2DSlot "diffuseTexture")
+             (fetch_ "objects" (Attribute "position", Attribute "uv"))
