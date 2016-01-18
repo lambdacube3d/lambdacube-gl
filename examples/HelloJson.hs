@@ -3,8 +3,8 @@ import "GLFW-b" Graphics.UI.GLFW as GLFW
 import qualified Data.Map as Map
 import qualified Data.Vector.Storable as SV
 
-import "lambdacube-gl-ir" LambdaCube.GL as LambdaCubeGL -- renderer
-import "lambdacube-gl-ir" LambdaCube.GL.Mesh as LambdaCubeGL
+import LambdaCube.GL as LambdaCubeGL -- renderer
+import LambdaCube.GL.Mesh as LambdaCubeGL
 
 import Codec.Picture as Juicy
 
