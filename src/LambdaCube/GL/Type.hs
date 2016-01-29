@@ -14,8 +14,9 @@ import Data.ByteString
 
 import Graphics.GL.Core33
 
-import Linear
-import IR
+import LambdaCube.Linear
+import LambdaCube.IR
+import LambdaCube.PipelineSchema
 
 type GLUniformName = ByteString
 
@@ -66,21 +67,6 @@ data ArrayDesc
     - independent from pipeline
     - per object features: enable/disable visibility, set render ordering
 -}
-
-data ObjectArraySchema
-    = ObjectArraySchema
-    { primitive     :: FetchPrimitive
-    , attributes    :: Map String StreamType
-    }
-    deriving Show
-
-data PipelineSchema
-    = PipelineSchema
-    { objectArrays  :: Map String ObjectArraySchema
-    , uniforms      :: Map String InputType
-    }
-    deriving Show
-
 data GLUniform = forall a. Storable a => GLUniform !InputType !(IORef a)
 
 instance Show GLUniform where
@@ -321,33 +307,6 @@ sizeOfArrayType ArrHalf   = 2
 -- describes an array in a buffer
 data Array  -- array type, element count (NOT byte size!), setter
     = Array ArrayType Int BufferSetter
-
--- dev hint: this should be InputType
---              we restrict StreamType using type class
--- subset of InputType, describes a stream type (in GPU side)
-data StreamType
-    = Attribute_Word
-    | Attribute_V2U
-    | Attribute_V3U
-    | Attribute_V4U
-    | Attribute_Int
-    | Attribute_V2I
-    | Attribute_V3I
-    | Attribute_V4I
-    | Attribute_Float
-    | Attribute_V2F
-    | Attribute_V3F
-    | Attribute_V4F
-    | Attribute_M22F
-    | Attribute_M23F
-    | Attribute_M24F
-    | Attribute_M32F
-    | Attribute_M33F
-    | Attribute_M34F
-    | Attribute_M42F
-    | Attribute_M43F
-    | Attribute_M44F
-    deriving (Show,Eq,Ord)
 
 toStreamType :: InputType -> Maybe StreamType
 toStreamType Word     = Just Attribute_Word

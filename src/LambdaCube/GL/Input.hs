@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, TypeSynonymInstances, FlexibleInstances #-}
 module LambdaCube.GL.Input where
 
 import Control.Applicative
@@ -22,12 +22,13 @@ import qualified Data.ByteString.Char8 as SB
 
 import Graphics.GL.Core33
 
-import IR as IR
-import Linear as IR
+import LambdaCube.IR as IR
+import LambdaCube.Linear as IR
+import LambdaCube.PipelineSchema
 import LambdaCube.GL.Type as T
 import LambdaCube.GL.Util
 
-import qualified IR as IR
+import qualified LambdaCube.IR as IR
 
 schemaFromPipeline :: IR.Pipeline -> PipelineSchema
 schemaFromPipeline a = PipelineSchema (Map.fromList sl) (foldl Map.union Map.empty ul)
@@ -392,29 +393,38 @@ uniformFTexture2D n is = case Map.lookup n is of
     Just (SFTexture2D fun)    -> fun
     _   -> nullSetter n "FTexture2D"
 
-a @: b = tell [(a,b)]
-defObjectArray n p m = mapM_ tell [PipelineSchema (Map.singleton n $ ObjectArraySchema p $ Map.singleton a t) mempty | (a,t) <- execWriter m]
-defUniforms m = tell $ PipelineSchema mempty $ Map.fromList $ execWriter m
-makeSchema a = execWriter a :: PipelineSchema
-
-unionObjectArraySchema (ObjectArraySchema a1 b1) (ObjectArraySchema a2 b2) =
-  ObjectArraySchema (if a1 == a2 then a1 else error $ "object array schema primitive mismatch " ++ show (a1,a2))
-                    (Map.unionWith (\a b -> if a == b then a else error $ "object array schema attribute type mismatch " ++ show (a,b)) b1 b2)
-
-instance Monoid PipelineSchema where
-  mempty = PipelineSchema mempty mempty
-  mappend (PipelineSchema a1 b1) (PipelineSchema a2 b2) =
-    PipelineSchema (Map.unionWith unionObjectArraySchema a1 a2) (Map.unionWith (\a b -> if a == b then a else error $ "schema type mismatch " ++ show (a,b)) b1 b2)
-
 type UniM = Writer [GLStorage -> IO ()]
 
 class UniformSetter a where
   (@=) :: GLUniformName -> IO a -> UniM ()
 
-instance UniformSetter Float where
-  n @= act = tell [\s -> let f = uniformFloat n (uniformSetter s) in f =<< act]
+setUniM setUni n act = tell [\s -> let f = setUni n (uniformSetter s) in f =<< act]
 
-instance UniformSetter TextureData where
-  n @= act = tell [\s -> let f = uniformFTexture2D n (uniformSetter s) in f =<< act]
+instance UniformSetter Bool   where (@=) = setUniM uniformBool
+instance UniformSetter V2B    where (@=) = setUniM uniformV2B
+instance UniformSetter V3B    where (@=) = setUniM uniformV3B
+instance UniformSetter V4B    where (@=) = setUniM uniformV4B
+instance UniformSetter Word32 where (@=) = setUniM uniformWord
+instance UniformSetter V2U    where (@=) = setUniM uniformV2U
+instance UniformSetter V3U    where (@=) = setUniM uniformV3U
+instance UniformSetter V4U    where (@=) = setUniM uniformV4U
+instance UniformSetter Int32  where (@=) = setUniM uniformInt
+instance UniformSetter V2I    where (@=) = setUniM uniformV2I
+instance UniformSetter V3I    where (@=) = setUniM uniformV3I
+instance UniformSetter V4I    where (@=) = setUniM uniformV4I
+instance UniformSetter Float  where (@=) = setUniM uniformFloat
+instance UniformSetter V2F    where (@=) = setUniM uniformV2F
+instance UniformSetter V3F    where (@=) = setUniM uniformV3F
+instance UniformSetter V4F    where (@=) = setUniM uniformV4F
+instance UniformSetter M22F   where (@=) = setUniM uniformM22F
+instance UniformSetter M23F   where (@=) = setUniM uniformM23F
+instance UniformSetter M24F   where (@=) = setUniM uniformM24F
+instance UniformSetter M32F   where (@=) = setUniM uniformM32F
+instance UniformSetter M33F   where (@=) = setUniM uniformM33F
+instance UniformSetter M34F   where (@=) = setUniM uniformM34F
+instance UniformSetter M42F   where (@=) = setUniM uniformM42F
+instance UniformSetter M43F   where (@=) = setUniM uniformM43F
+instance UniformSetter M44F   where (@=) = setUniM uniformM44F
+instance UniformSetter TextureData where (@=) = setUniM uniformFTexture2D
 
 updateUniforms storage m = sequence_ $ let l = map ($ storage) $ execWriter m in l

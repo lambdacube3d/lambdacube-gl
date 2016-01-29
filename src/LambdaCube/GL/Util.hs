@@ -43,8 +43,9 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Graphics.GL.Core33
-import Linear
-import IR
+import LambdaCube.Linear
+import LambdaCube.IR
+import LambdaCube.PipelineSchema
 import LambdaCube.GL.Type
 
 setSampler :: GLint -> Int32 -> IO ()

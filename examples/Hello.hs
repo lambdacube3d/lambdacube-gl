@@ -1,7 +1,7 @@
 {-# LANGUAGE PackageImports, LambdaCase, OverloadedStrings #-}
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import qualified Data.Map as Map
-import qualified Data.Vector.Storable as SV
+import qualified Data.Vector as V
 
 import LambdaCube.GL as LambdaCubeGL -- renderer
 import LambdaCube.GL.Mesh as LambdaCubeGL
@@ -69,21 +69,19 @@ main = do
 triangleA :: LambdaCubeGL.Mesh
 triangleA = Mesh
     { mAttributes   = Map.fromList
-        [ ("position",  A_V2F $ SV.fromList [V2 1 1, V2 1 (-1), V2 (-1) (-1)])
-        , ("uv",        A_V2F $ SV.fromList [V2 1 1, V2 0 1, V2 0 0])
+        [ ("position",  A_V2F $ V.fromList [V2 1 1, V2 1 (-1), V2 (-1) (-1)])
+        , ("uv",        A_V2F $ V.fromList [V2 1 1, V2 0 1, V2 0 0])
         ]
     , mPrimitive    = P_Triangles
-    , mGPUData      = Nothing
     }
 
 triangleB :: LambdaCubeGL.Mesh
 triangleB = Mesh
     { mAttributes   = Map.fromList
-        [ ("position",  A_V2F $ SV.fromList [V2 1 1, V2 (-1) (-1), V2 (-1) 1])
-        , ("uv",        A_V2F $ SV.fromList [V2 1 1, V2 0 0, V2 1 0])
+        [ ("position",  A_V2F $ V.fromList [V2 1 1, V2 (-1) (-1), V2 (-1) 1])
+        , ("uv",        A_V2F $ V.fromList [V2 1 1, V2 0 0, V2 1 0])
         ]
     , mPrimitive    = P_Triangles
-    , mGPUData      = Nothing
     }
 
 initWindow :: String -> Int -> Int -> IO Window

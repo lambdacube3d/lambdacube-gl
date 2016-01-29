@@ -24,9 +24,10 @@ import Foreign
 import Foreign.C.String
 
 -- LC IR imports
-import Linear
-import IR hiding (streamType)
-import qualified IR as IR
+import LambdaCube.PipelineSchema
+import LambdaCube.Linear
+import LambdaCube.IR hiding (streamType)
+import qualified LambdaCube.IR as IR
 
 import LambdaCube.GL.Type
 import LambdaCube.GL.Util

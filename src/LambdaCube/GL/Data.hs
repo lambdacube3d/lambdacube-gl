@@ -23,6 +23,9 @@ import LambdaCube.GL.Type
 import LambdaCube.GL.Util
 
 -- Buffer
+disposeBuffer :: Buffer -> IO ()
+disposeBuffer (Buffer _ bo) = withArray [bo] $ glDeleteBuffers 1
+
 compileBuffer :: [Array] -> IO Buffer
 compileBuffer arrs = do
     let calcDesc (offset,setters,descs) (Array arrType cnt setter) =
@@ -55,6 +58,8 @@ arrayType :: Buffer -> Int -> ArrayType
 arrayType buf arrIdx = arrType $! bufArrays buf V.! arrIdx
 
 -- Texture
+disposeTexture :: TextureData -> IO ()
+disposeTexture (TextureData to) = withArray [to] $ glDeleteTextures 1
 
 -- FIXME: Temporary implemenation
 uploadTexture2DToGPU :: DynamicImage -> IO TextureData

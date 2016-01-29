@@ -1,4 +1,6 @@
 module LambdaCube.GL (
+    -- Schema
+    module LambdaCube.PipelineSchema,
     -- IR
     V2(..),V3(..),V4(..),
     -- Array, Buffer, Texture
@@ -9,7 +11,6 @@ module LambdaCube.GL (
     IndexStream(..),
     Stream(..),
     StreamSetter,
-    StreamType(..),
     FetchPrimitive(..),
     InputType(..),
     Primitive(..),
@@ -20,20 +21,20 @@ module LambdaCube.GL (
     sizeOfArrayType,
     toStreamType,
     compileBuffer,
+    disposeBuffer,
     updateBuffer,
     bufferSize,
     arraySize,
     arrayType,
     uploadTexture2DToGPU,
     uploadTexture2DToGPU',
+    disposeTexture,
 
     -- GL: Renderer, Storage, Object
     GLUniformName,
     GLRenderer,
     GLStorage,
     Object,
-    PipelineSchema(..),
-    ObjectArraySchema(..),
     schema,
     schemaFromPipeline,
     allocRenderer,
@@ -96,5 +97,7 @@ import LambdaCube.GL.Type
 import LambdaCube.GL.Backend
 import LambdaCube.GL.Data
 import LambdaCube.GL.Input
-import IR
-import Linear
+import LambdaCube.IR
+import LambdaCube.Linear
+import LambdaCube.PipelineSchema
+import LambdaCube.PipelineSchemaUtil
