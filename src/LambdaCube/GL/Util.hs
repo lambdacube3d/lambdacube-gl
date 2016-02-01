@@ -284,7 +284,7 @@ printProgramLog o = do
         glGetProgramInfoLog o (fromIntegral i) sizePtr ps
         size <- peek sizePtr
         log <- peekCStringLen (castPtr ps, fromIntegral size)
-        putStrLn log
+        unless (null log) $ putStrLn log
 
 compileShader :: GLuint -> [String] -> IO ()
 compileShader o srcl = withMany withCString srcl $! \l -> withArray l $! \p -> do

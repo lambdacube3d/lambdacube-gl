@@ -199,12 +199,12 @@ printFBOStatus = checkFBO >>= print
 compileProgram :: Map String InputType -> Program -> IO GLProgram
 compileProgram uniTrie p = do
     po <- glCreateProgram
-    putStrLn $ "compile program: " ++ show po
+    --putStrLn $ "compile program: " ++ show po
     let createAndAttach src t = do
             o <- glCreateShader t
             compileShader o [src]
             glAttachShader po o
-            putStr "    + compile shader source: " >> printGLStatus
+            --putStr "    + compile shader source: " >> printGLStatus
             return o
 
     objs <- sequence $ createAndAttach (vertexShader p) GL_VERTEX_SHADER : createAndAttach (fragmentShader p) GL_FRAGMENT_SHADER : case geometryShader p of
@@ -212,9 +212,9 @@ compileProgram uniTrie p = do
         Just s  -> [createAndAttach s GL_GEOMETRY_SHADER]
 
     forM_ (zip (V.toList $ programOutput p) [0..]) $ \(Parameter n t,i) -> withCString n $ \pn -> do
-        putStrLn ("variable " ++ show n ++ " attached to color number #" ++ show i)
+        --putStrLn ("variable " ++ show n ++ " attached to color number #" ++ show i)
         glBindFragDataLocation po i $ castPtr pn
-    putStr "    + setup shader output mapping: " >> printGLStatus
+    --putStr "    + setup shader output mapping: " >> printGLStatus
 
     glLinkProgram po
     printProgramLog po
@@ -226,18 +226,19 @@ compileProgram uniTrie p = do
     -- check program input
     (uniforms,uniformsType) <- queryUniforms po
     (attributes,attributesType) <- queryStreams po
-    print uniforms
-    print attributes
+    --print uniforms
+    --print attributes
     let lcUniforms = (programUniforms p) `Map.union` (programInTextures p)
         lcStreams = fmap ty (programStreams p)
         check a m = and $ map go $ Map.toList m
           where go (k,b) = case Map.lookup k a of
                   Nothing -> False
                   Just x -> x == b
-    unless (check lcUniforms uniformsType) $ do
-      putStrLn $ "expected: " ++ show lcUniforms
-      putStrLn $ "actual: " ++ show uniformsType
-      fail "shader program uniform input mismatch!"
+    unless (check lcUniforms uniformsType) $ fail $ unlines
+      [ "shader program uniform input mismatch!"
+      , "expected: " ++ show lcUniforms
+      , "actual: " ++ show uniformsType
+      ]
     unless (check lcStreams attributesType) $ fail $ "shader program stream input mismatch! " ++ show (attributesType,lcStreams)
     -- the public (user) pipeline and program input is encoded by the objectArrays, therefore the programs does not distinct the render and slot textures input
     let inUniNames = programUniforms p
@@ -245,17 +246,17 @@ compileProgram uniTrie p = do
         inTextureNames = programInTextures p
         inTextures = L.filter (\(n,v) -> Map.member n inTextureNames) $ Map.toList $ uniforms
         texUnis = [n | (n,_) <- inTextures, Map.member n uniTrie]
-    putStrLn $ "uniTrie: " ++ show (Map.keys uniTrie)
-    putStrLn $ "inUniNames: " ++ show inUniNames
-    putStrLn $ "inUniforms: " ++ show inUniforms
-    putStrLn $ "inTextureNames: " ++ show inTextureNames
-    putStrLn $ "inTextures: " ++ show inTextures
-    putStrLn $ "texUnis: " ++ show texUnis
+    --putStrLn $ "uniTrie: " ++ show (Map.keys uniTrie)
+    --putStrLn $ "inUniNames: " ++ show inUniNames
+    --putStrLn $ "inUniforms: " ++ show inUniforms
+    --putStrLn $ "inTextureNames: " ++ show inTextureNames
+    --putStrLn $ "inTextures: " ++ show inTextures
+    --putStrLn $ "texUnis: " ++ show texUnis
     let valA = Map.toList $ attributes
         valB = Map.toList $ programStreams p
-    putStrLn "------------"
-    print $ Map.toList $ attributes
-    print $ Map.toList $ programStreams p
+    --putStrLn "------------"
+    --print $ Map.toList $ attributes
+    --print $ Map.toList $ programStreams p
     let lcStreamName = fmap name (programStreams p)
     return $ GLProgram
         { shaderObjects         = objs
