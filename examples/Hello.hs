@@ -11,6 +11,10 @@ import Codec.Picture as Juicy
 import Data.Aeson
 import qualified Data.ByteString as SB
 
+----------------------------------------------------
+--  See:  http://lambdacube3d.com/getting-started
+----------------------------------------------------
+
 main :: IO ()
 main = do
     Just pipelineDesc <- decodeStrict <$> SB.readFile "hello.json"

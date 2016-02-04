@@ -10,6 +10,10 @@ import Codec.Picture as Juicy
 
 import LambdaCube.Compiler as LambdaCube -- compiler
 
+----------------------------------------------------
+--  See:  http://lambdacube3d.com/getting-started
+----------------------------------------------------
+
 main :: IO ()
 main = do
     -- compile hello.lc to graphics pipeline description
