@@ -1,6 +1,6 @@
 makeFrame (time :: Float)
           (texture :: Texture)
-          (prims :: Stream (Primitive Triangle (Vec 2 Float, Vec 2 Float)))
+          (prims :: PrimitiveStream Triangle (Vec 2 Float, Vec 2 Float))
 
     = imageFrame (emptyColorImage (V4 0 0 0.4 1))
   `overlay`
