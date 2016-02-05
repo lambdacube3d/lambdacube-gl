@@ -1,0 +1,5 @@
+requirements:
+  lambdacube-gl
+  GLFW-b
+
+cabal install lambdacube-gl GLFW-b
