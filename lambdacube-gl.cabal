@@ -1,6 +1,7 @@
 name:                lambdacube-gl
-version:             0.4.0.0
+version:             0.4.0.1
 synopsis:            OpenGL 3.3 Core Profile backend for LambdaCube 3D
+description:         OpenGL 3.3 Core Profile backend for LambdaCube 3D
 description:         github: https://github.com/lambdacube3d/lambdacube-gl
 homepage:            http://lambdacube3d.com
 license:             BSD3
@@ -18,6 +19,10 @@ extra-source-files:  examples/Hello.hs
                      examples/logo.png
 
 cabal-version:       >=1.10
+
+source-repository head
+  type:     git
+  location: https://github.com/lambdacube3d/lambdacube-gl
 
 library
   exposed-modules:
