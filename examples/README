@@ -3,3 +3,7 @@ requirements:
   GLFW-b
 
 cabal install lambdacube-gl GLFW-b
+
+compile and run:
+  ghc Hello
+  ./Hello
