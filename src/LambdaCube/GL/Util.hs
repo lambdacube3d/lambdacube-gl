@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module LambdaCube.GL.Util (
     queryUniforms,
     queryStreams,
@@ -23,6 +24,7 @@ module LambdaCube.GL.Util (
     glGetIntegerv1,
     setSampler,
     checkFBO,
+    compileSampler,
     compileTexture,
     primitiveToFetchPrimitive,
     primitiveToGLType,
@@ -503,21 +505,48 @@ edgeModeToGLType a = case a of
     ClampToEdge     -> GL_CLAMP_TO_EDGE
     ClampToBorder   -> GL_CLAMP_TO_BORDER
 
+data ParameterSetup
+  = ParameterSetup
+  { setParameteri     :: GLenum -> GLint -> IO ()
+  , setParameterfv    :: GLenum -> Ptr GLfloat -> IO ()
+  , setParameterIiv   :: GLenum -> Ptr GLint -> IO ()
+  , setParameterIuiv  :: GLenum -> Ptr GLuint -> IO ()
+  , setParameterf     :: GLenum -> GLfloat -> IO ()
+  }
+
 setTextureSamplerParameters :: GLenum -> SamplerDescriptor -> IO ()
-setTextureSamplerParameters t s = do
-    glTexParameteri t GL_TEXTURE_WRAP_S $ fromIntegral $ edgeModeToGLType $ samplerWrapS s
+setTextureSamplerParameters target = setParameters $ ParameterSetup
+  { setParameteri     = glTexParameteri target
+  , setParameterfv    = glTexParameterfv target
+  , setParameterIiv   = glTexParameterIiv target
+  , setParameterIuiv  = glTexParameterIuiv target
+  , setParameterf     = glTexParameterf target
+  }
+
+setSamplerParameters :: GLuint -> SamplerDescriptor -> IO ()
+setSamplerParameters samplerObj = setParameters $ ParameterSetup
+  { setParameteri     = glSamplerParameteri samplerObj
+  , setParameterfv    = glSamplerParameterfv samplerObj
+  , setParameterIiv   = glSamplerParameterIiv samplerObj
+  , setParameterIuiv  = glSamplerParameterIuiv samplerObj
+  , setParameterf     = glSamplerParameterf samplerObj
+  }
+
+setParameters :: ParameterSetup -> SamplerDescriptor -> IO ()
+setParameters ParameterSetup{..} s = do
+    setParameteri GL_TEXTURE_WRAP_S $ fromIntegral $ edgeModeToGLType $ samplerWrapS s
     case samplerWrapT s of
         Nothing -> return ()
-        Just a  -> glTexParameteri t GL_TEXTURE_WRAP_T $ fromIntegral $ edgeModeToGLType a
+        Just a  -> setParameteri GL_TEXTURE_WRAP_T $ fromIntegral $ edgeModeToGLType a
     case samplerWrapR s of
         Nothing -> return ()
-        Just a  -> glTexParameteri t GL_TEXTURE_WRAP_R $ fromIntegral $ edgeModeToGLType a
-    glTexParameteri t GL_TEXTURE_MIN_FILTER $ fromIntegral $ filterToGLType $ samplerMinFilter s
-    glTexParameteri t GL_TEXTURE_MAG_FILTER $ fromIntegral $ filterToGLType $ samplerMagFilter s
+        Just a  -> setParameteri GL_TEXTURE_WRAP_R $ fromIntegral $ edgeModeToGLType a
+    setParameteri GL_TEXTURE_MIN_FILTER $ fromIntegral $ filterToGLType $ samplerMinFilter s
+    setParameteri GL_TEXTURE_MAG_FILTER $ fromIntegral $ filterToGLType $ samplerMagFilter s
 
-    let setBColorV4F a = with a $ \p -> glTexParameterfv t GL_TEXTURE_BORDER_COLOR $ castPtr p
-        setBColorV4I a = with a $ \p -> glTexParameterIiv t GL_TEXTURE_BORDER_COLOR $ castPtr p
-        setBColorV4U a = with a $ \p -> glTexParameterIuiv t GL_TEXTURE_BORDER_COLOR $ castPtr p
+    let setBColorV4F a = with a $ \p -> setParameterfv GL_TEXTURE_BORDER_COLOR $ castPtr p
+        setBColorV4I a = with a $ \p -> setParameterIiv GL_TEXTURE_BORDER_COLOR $ castPtr p
+        setBColorV4U a = with a $ \p -> setParameterIuiv GL_TEXTURE_BORDER_COLOR $ castPtr p
     case samplerBorderColor s of
         -- float, word, int, red, rg, rgb, rgba
         VFloat a        -> setBColorV4F $ V4 a 0 0 0
@@ -538,16 +567,24 @@ setTextureSamplerParameters t s = do
 
     case samplerMinLod s of
         Nothing -> return ()
-        Just a  -> glTexParameterf t GL_TEXTURE_MIN_LOD $ realToFrac a
+        Just a  -> setParameterf GL_TEXTURE_MIN_LOD $ realToFrac a
     case samplerMaxLod s of
         Nothing -> return ()
-        Just a  -> glTexParameterf t GL_TEXTURE_MAX_LOD $ realToFrac a
-    glTexParameterf t GL_TEXTURE_LOD_BIAS $ realToFrac $ samplerLodBias s
+        Just a  -> setParameterf GL_TEXTURE_MAX_LOD $ realToFrac a
+    setParameterf GL_TEXTURE_LOD_BIAS $ realToFrac $ samplerLodBias s
     case samplerCompareFunc s of
-        Nothing -> glTexParameteri t GL_TEXTURE_COMPARE_MODE $ fromIntegral GL_NONE
+        Nothing -> setParameteri GL_TEXTURE_COMPARE_MODE $ fromIntegral GL_NONE
         Just a  -> do
-            glTexParameteri t GL_TEXTURE_COMPARE_MODE $ fromIntegral GL_COMPARE_REF_TO_TEXTURE
-            glTexParameteri t GL_TEXTURE_COMPARE_FUNC $ fromIntegral $ comparisonFunctionToGLType a
+            setParameteri GL_TEXTURE_COMPARE_MODE $ fromIntegral GL_COMPARE_REF_TO_TEXTURE
+            setParameteri GL_TEXTURE_COMPARE_FUNC $ fromIntegral $ comparisonFunctionToGLType a
+
+compileSampler :: SamplerDescriptor -> IO GLSampler
+compileSampler s = do
+  so <- alloca $! \po -> glGenSamplers 1 po >> peek po
+  setSamplerParameters so s
+  return $ GLSampler
+    { glSamplerObject = so
+    }
 
 compileTexture :: TextureDescriptor -> IO GLTexture
 compileTexture txDescriptor = do

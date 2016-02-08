@@ -267,9 +267,6 @@ compileProgram uniTrie p = do
         , inputStreams          = Map.fromList [(n,(idx, attrName)) | (n,idx) <- Map.toList $ attributes, let Just attrName = Map.lookup n lcStreamName]
         }
 
-compileSampler :: SamplerDescriptor -> IO GLSampler
-compileSampler s = return $ GLSampler {} -- TODO
-
 compileRenderTarget :: Vector TextureDescriptor -> Vector GLTexture -> RenderTarget -> IO GLRenderTarget
 compileRenderTarget texs glTexs (RenderTarget targets) = do
     let isFB (Framebuffer _)    = True
@@ -514,6 +511,8 @@ disposeRenderer p = do
     withArray (map framebufferObject $ V.toList targets) $ (glDeleteFramebuffers $ fromIntegral $ V.length targets)
     let textures = glTextures p
     withArray (map glTextureObject $ V.toList textures) $ (glDeleteTextures $ fromIntegral $ V.length textures)
+    let samplers = glSamplers p
+    withArray (map glSamplerObject $ V.toList samplers) $ (glDeleteSamplers . fromIntegral . V.length $ glSamplers p)
     with (glVAO p) $ (glDeleteVertexArrays 1)
 
 {-
@@ -730,6 +729,7 @@ renderFrame glp = do
             GLSetProgram p                  -> glUseProgram p
             GLSetSamplerUniform i tu ref    -> glUniform1i i tu >> writeIORef ref tu
             GLSetTexture tu target tx       -> glActiveTexture tu >> glBindTexture target tx
+            GLSetSampler tu s               -> glBindSampler tu s
             GLClearRenderTarget vals        -> clearRenderTarget vals
             GLGenerateMipMap tu target      -> glActiveTexture tu >> glGenerateMipmap target
             GLRenderStream streamIdx progIdx  -> do
@@ -790,10 +790,7 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
                                     let tex = textures ! t
                                     modify (\s -> s {textureBinding = IM.insert tu tex $ textureBinding s})
                                     return $ GLSetTexture (GL_TEXTURE0 + fromIntegral tu) (glTextureTarget tex) (glTextureObject tex)
-{-
-    SetSampler tu s             -> liftIO $ do
-                                        glBindSampler (fromIntegral tu) (samplerObject $ glSamplers glp ! s)
--}
+    SetSampler tu s             -> return $ GLSetSampler (GL_TEXTURE0 + fromIntegral tu) (maybe 0 (glSamplerObject . (samplers !)) s)
     RenderSlot slot             -> do
                                     smpUnis <- samplerUniforms <$> get
                                     p <- currentProgram <$> get

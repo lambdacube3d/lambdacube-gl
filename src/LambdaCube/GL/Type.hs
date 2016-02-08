@@ -163,7 +163,7 @@ data GLRenderer
 
 data GLSampler
     = GLSampler
-    { samplerObject :: GLuint
+    { glSamplerObject :: GLuint
     }
 
 data GLRenderTarget
