@@ -196,8 +196,8 @@ clearRenderTarget values = do
 printGLStatus = checkGL >>= print
 printFBOStatus = checkFBO >>= print
 
-compileProgram :: Map String InputType -> Program -> IO GLProgram
-compileProgram uniTrie p = do
+compileProgram :: Program -> IO GLProgram
+compileProgram p = do
     po <- glCreateProgram
     --putStrLn $ "compile program: " ++ show po
     let createAndAttach src t = do
@@ -245,7 +245,7 @@ compileProgram uniTrie p = do
         inUniforms = L.filter (\(n,v) -> Map.member n inUniNames) $ Map.toList $ uniforms
         inTextureNames = programInTextures p
         inTextures = L.filter (\(n,v) -> Map.member n inTextureNames) $ Map.toList $ uniforms
-        texUnis = [n | (n,_) <- inTextures, Map.member n uniTrie]
+        texUnis = [n | (n,_) <- inTextures, Map.member n (programUniforms p)]
     --putStrLn $ "uniTrie: " ++ show (Map.keys uniTrie)
     --putStrLn $ "inUniNames: " ++ show inUniNames
     --putStrLn $ "inUniforms: " ++ show inUniforms
@@ -474,11 +474,10 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds ++ s
 
 allocRenderer :: Pipeline -> IO GLRenderer
 allocRenderer p = do
-    let uniTrie = uniforms $ schemaFromPipeline p
     smps <- V.mapM compileSampler $ samplers p
     texs <- V.mapM compileTexture $ textures p
     trgs <- V.mapM (compileRenderTarget (textures p) texs) $ targets p
-    prgs <- V.mapM (compileProgram uniTrie) $ programs p
+    prgs <- V.mapM compileProgram $ programs p
     -- texture unit mapping ioref trie
     -- texUnitMapRefs :: Map UniformName (IORef TextureUnit)
     texUnitMapRefs <- Map.fromList <$> mapM (\k -> (k,) <$> newIORef 0) (S.toList $ S.fromList $ concat $ V.toList $ V.map (Map.keys . programInTextures) $ programs p)
