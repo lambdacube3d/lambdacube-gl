@@ -759,13 +759,11 @@ data CGState
     = CGState
     { currentProgram    :: ProgramName
     , textureBinding    :: IntMap GLTexture
-    , samplerUniforms   :: Map UniformName TextureUnit
     }
 
 initCGState = CGState
     { currentProgram    = error "CGState: empty currentProgram"
     , textureBinding    = IM.empty
-    , samplerUniforms   = mempty
     }
 
 type CG a = State CGState a
@@ -779,7 +777,6 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
                                     modify (\s -> s {currentProgram = p})
                                     return $ GLSetProgram $ programObject $ programs ! p
     SetSamplerUniform n tu      -> do
-                                    modify (\s@CGState{..} -> s {samplerUniforms = Map.insert n tu samplerUniforms})
                                     p <- currentProgram <$> get
                                     case Map.lookup n (inputTextures $ programs ! p) of
                                         Nothing -> fail $ "internal error (SetSamplerUniform)! - " ++ show cmd
@@ -792,7 +789,6 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
                                     return $ GLSetTexture (GL_TEXTURE0 + fromIntegral tu) (glTextureTarget tex) (glTextureObject tex)
     SetSampler tu s             -> return $ GLSetSampler (GL_TEXTURE0 + fromIntegral tu) (maybe 0 (glSamplerObject . (samplers !)) s)
     RenderSlot slot             -> do
-                                    smpUnis <- samplerUniforms <$> get
                                     p <- currentProgram <$> get
                                     return $ GLRenderSlot slot p
     RenderStream stream         -> do
