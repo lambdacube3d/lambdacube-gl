@@ -262,15 +262,18 @@ fromGLType (t,1)
     | otherwise = error "Failed fromGLType"
 fromGLUniformType _ = error "Failed fromGLType"
 
-printShaderLog :: GLuint -> IO ()
+printShaderLog :: GLuint -> IO String
 printShaderLog o = do
-    i <- glGetShaderiv1 GL_INFO_LOG_LENGTH o
-    when (i > 0) $
+  i <- glGetShaderiv1 GL_INFO_LOG_LENGTH o
+  case (i > 0) of
+    False -> return ""
+    True -> do
       alloca $ \sizePtr -> allocaArray (fromIntegral i) $! \ps -> do
         glGetShaderInfoLog o (fromIntegral i) sizePtr ps
         size <- peek sizePtr
         log <- peekCStringLen (castPtr ps, fromIntegral size)
         putStrLn log
+        return log
 
 glGetShaderiv1 :: GLenum -> GLuint -> IO GLint
 glGetShaderiv1 pname o = alloca $! \pi -> glGetShaderiv o pname pi >> peek pi
@@ -278,23 +281,26 @@ glGetShaderiv1 pname o = alloca $! \pi -> glGetShaderiv o pname pi >> peek pi
 glGetProgramiv1 :: GLenum -> GLuint -> IO GLint
 glGetProgramiv1 pname o = alloca $! \pi -> glGetProgramiv o pname pi >> peek pi
 
-printProgramLog :: GLuint -> IO ()
+printProgramLog :: GLuint -> IO String
 printProgramLog o = do
-    i <- glGetProgramiv1 GL_INFO_LOG_LENGTH o
-    when (i > 0) $
+  i <- glGetProgramiv1 GL_INFO_LOG_LENGTH o
+  case (i > 0) of
+    False -> return ""
+    True -> do
       alloca $ \sizePtr -> allocaArray (fromIntegral i) $! \ps -> do
         glGetProgramInfoLog o (fromIntegral i) sizePtr ps
         size <- peek sizePtr
         log <- peekCStringLen (castPtr ps, fromIntegral size)
         unless (null log) $ putStrLn log
+        return log
 
 compileShader :: GLuint -> [String] -> IO ()
 compileShader o srcl = withMany withCString srcl $! \l -> withArray l $! \p -> do
     glShaderSource o (fromIntegral $! length srcl) (castPtr p) nullPtr
     glCompileShader o
-    printShaderLog o
+    log <- printShaderLog o
     status <- glGetShaderiv1 GL_COMPILE_STATUS o
-    when (status /= fromIntegral GL_TRUE) $ fail "compileShader failed!"
+    when (status /= fromIntegral GL_TRUE) $ fail $ unlines ["compileShader failed:",log]
 
 checkGL :: IO String
 checkGL = do

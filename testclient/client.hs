@@ -44,7 +44,10 @@ main = do
     GLFW.pollEvents
     threadDelay 100000
 
-setupConnection win = withSocketsDo $ WS.runClient "192.168.0.12" 9160 "/" $ \conn -> do
+setupConnection win = withSocketsDo $ WS.runClient "192.168.0.12" 9160 "/" $ \conn -> catchAll (execConnection win conn) $ \e -> do
+  WS.sendTextData conn . encode $ RenderJobError $ displayException e
+
+execConnection win conn = do
   putStrLn "Connected!"
   -- register backend
   WS.sendTextData conn . encode $ ClientInfo
@@ -75,8 +78,9 @@ processRenderJob win conn renderJob@RenderJob{..} = do
   putStrLn "got render job"
   gpuData@GPUData{..} <- allocateGPUData renderJob
   -- foreach pipeline
-  doAfter (disposeGPUData gpuData) $ forM_ pipelines $ \pipelineDesc -> do
-    renderer <- allocRenderer pipelineDesc
+  doAfter (disposeGPUData gpuData) $ forM_ pipelines $ \PipelineInfo{..} -> do
+    putStrLn $ "use pipeline: " ++ pipelineName
+    renderer <- allocRenderer pipeline
     -- foreach scene
     doAfter (disposeRenderer renderer) $ forM_ scenes $ \Scene{..} -> do
       storage <- allocStorage schema

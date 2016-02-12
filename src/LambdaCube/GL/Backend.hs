@@ -217,11 +217,11 @@ compileProgram p = do
     --putStr "    + setup shader output mapping: " >> printGLStatus
 
     glLinkProgram po
-    printProgramLog po
+    log <- printProgramLog po
 
     -- check link status
     status <- glGetProgramiv1 GL_LINK_STATUS po
-    when (status /= fromIntegral GL_TRUE) $ fail "link program failed!"
+    when (status /= fromIntegral GL_TRUE) $ fail $ unlines ["link program failed:",log]
 
     -- check program input
     (uniforms,uniformsType) <- queryUniforms po
