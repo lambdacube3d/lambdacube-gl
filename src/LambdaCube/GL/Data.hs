@@ -63,10 +63,10 @@ disposeTexture (TextureData to) = withArray [to] $ glDeleteTextures 1
 
 -- FIXME: Temporary implemenation
 uploadTexture2DToGPU :: DynamicImage -> IO TextureData
-uploadTexture2DToGPU = uploadTexture2DToGPU' False True False
+uploadTexture2DToGPU = uploadTexture2DToGPU' True False True False
 
-uploadTexture2DToGPU' :: Bool -> Bool -> Bool -> DynamicImage -> IO TextureData
-uploadTexture2DToGPU' isSRGB isMip isClamped bitmap' = do
+uploadTexture2DToGPU' :: Bool -> Bool -> Bool -> Bool -> DynamicImage -> IO TextureData
+uploadTexture2DToGPU' isFiltered isSRGB isMip isClamped bitmap' = do
     let bitmap = case bitmap' of
           ImageRGB8 i@(Image w h _)   -> bitmap' -- pixelFoldMap (\(PixelRGB8 r g b) -> [PixelRGBA8 r g b maxBound]) i
           ImageRGBA8 i@(Image w h _)  -> bitmap' -- pixelFoldMap (\(PixelRGBA8 r g b a) -> [PixelRGBA8 r g b a]) i
@@ -93,16 +93,17 @@ uploadTexture2DToGPU' isSRGB isMip isClamped bitmap' = do
         withBitmap (ImageRGB8 (Image w h v)) f = SV.unsafeWith v $ f (w,h) 3 0
         withBitmap (ImageRGBA8 (Image w h v)) f = SV.unsafeWith v $ f (w,h) 4 0
         withBitmap _ _ = error "unsupported image type :("
+        texFilter = if isFiltered then GL_LINEAR else GL_NEAREST
         wrapMode = case isClamped of
             True    -> GL_CLAMP_TO_EDGE
             False   -> GL_REPEAT
-        (minFilter,maxLevel) = case isMip of
-            False   -> (GL_LINEAR,0)
+        (minFilter,maxLevel) = case isFiltered && isMip of
+            False   -> (texFilter,0)
             True    -> (GL_LINEAR_MIPMAP_LINEAR, floor $ log (fromIntegral $ max width height) / log 2)
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_S $ fromIntegral wrapMode
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_T $ fromIntegral wrapMode
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER $ fromIntegral minFilter
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER $ fromIntegral GL_LINEAR
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER $ fromIntegral texFilter
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_BASE_LEVEL 0
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAX_LEVEL $ fromIntegral maxLevel
     withBitmap bitmap $ \(w,h) nchn 0 ptr -> do
