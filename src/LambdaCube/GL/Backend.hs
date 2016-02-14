@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections, MonadComprehensions, RecordWildCards #-}
+{-# LANGUAGE TupleSections, MonadComprehensions, RecordWildCards, LambdaCase #-}
 module LambdaCube.GL.Backend where
 
 import Control.Applicative
@@ -559,7 +559,7 @@ setStorage :: GLRenderer -> GLStorage -> IO (Maybe String)
 setStorage p input' = setStorage' p (Just input')
 
 setStorage' :: GLRenderer -> Maybe GLStorage -> IO (Maybe String)
-setStorage' p input' = do
+setStorage' p@GLRenderer{..} input' = do
     -- TODO: check matching input schema
     {-
     case input' of
@@ -571,19 +571,15 @@ setStorage' p input' = do
             - remove pipeline's object commands from used objectArrays
             - remove pipeline from attached pipelines vector
     -}
-    ic' <- readIORef $ glInput p
-    case ic' of
+    readIORef glInput >>= \case
         Nothing -> return ()
-        Just ic -> do
-            let idx      = icId ic
-                oldInput = icInput ic
-                slotMask = icSlotMapPipelineToInput ic
-                slotRefs = slotVector oldInput
-            modifyIORef (pipelines oldInput) $ \v -> v // [(idx,Nothing)]
-            V.forM_ slotMask $ \slotIdx -> do
+        Just InputConnection{..} -> do
+            let slotRefs = slotVector icInput
+            modifyIORef (pipelines icInput) $ \v -> v // [(icId,Nothing)]
+            V.forM_ icSlotMapPipelineToInput $ \slotIdx -> do
                 slot <- readIORef (slotRefs ! slotIdx)
                 forM_ (IM.elems $ objectMap slot) $ \obj -> do
-                    modifyIORef (objCommands obj) $ \v -> v // [(idx,V.empty)]
+                    modifyIORef (objCommands obj) $ \v -> v // [(icId,V.empty)]
     {-
         addition:
             - get an id from pipeline input
@@ -592,7 +588,7 @@ setStorage' p input' = do
             - update used objectArrays, and generate object commands for objects in the related objectArrays
     -}
     case input' of
-        Nothing -> writeIORef (glInput p) Nothing >> return Nothing
+        Nothing -> writeIORef glInput Nothing >> return Nothing
         Just input -> do
             let pipelinesRef = pipelines input
             oldPipelineV <- readIORef pipelinesRef
@@ -607,9 +603,9 @@ setStorage' p input' = do
                     return (i,Nothing)
             -- create input connection
             let sm      = slotMap input
-                pToI    = [i | n <- glSlotNames p, let Just i = Map.lookup n sm]
+                pToI    = [i | n <- glSlotNames, let Just i = Map.lookup n sm]
                 iToP    = V.update (V.replicate (Map.size sm) Nothing) (V.imap (\i v -> (v, Just i)) pToI)
-            writeIORef (glInput p) $ Just $ InputConnection idx input pToI iToP
+            writeIORef glInput $ Just $ InputConnection idx input pToI iToP
 
             -- generate object commands for related objectArrays
             {-
@@ -620,21 +616,21 @@ setStorage' p input' = do
                             generate object commands
             -}
             let slotV = slotVector input
-                progV = glPrograms p
-                texUnitMap = glTexUnitMapping p
+                progV = glPrograms
+                --texUnitMap = glTexUnitMapping p
                 topUnis = uniformSetup input
                 emptyV  = V.replicate (V.length progV) []
                 extend v = case shouldExtend of
                     Nothing -> v
                     Just l  -> V.concat [v,V.replicate l V.empty]
-            V.forM_ (V.zip pToI (glSlotPrograms p)) $ \(slotIdx,prgs) -> do
+            V.forM_ (V.zip pToI glSlotPrograms) $ \(slotIdx,prgs) -> do
                 slot <- readIORef $ slotV ! slotIdx
                 forM_ (IM.elems $ objectMap slot) $ \obj -> do
-                    let cmdV = emptyV // [(prgIdx,createObjectCommands texUnitMap topUnis obj (progV ! prgIdx)) | prgIdx <- prgs]
+                    let cmdV = emptyV // [(prgIdx,createObjectCommands glTexUnitMapping topUnis obj (progV ! prgIdx)) | prgIdx <- prgs]
                     modifyIORef (objCommands obj) $ \v -> extend v // [(idx,cmdV)]
             -- generate stream commands
-            V.forM_ (glStreams p) $ \s -> do
-              writeIORef (glStreamCommands s) $ createStreamCommands texUnitMap topUnis (glStreamAttributes s) (glStreamPrimitive s) (progV ! glStreamProgram s)
+            V.forM_ glStreams $ \s -> do
+              writeIORef (glStreamCommands s) $ createStreamCommands glTexUnitMapping topUnis (glStreamAttributes s) (glStreamPrimitive s) (progV ! glStreamProgram s)
             return Nothing
 {-
   track state:
