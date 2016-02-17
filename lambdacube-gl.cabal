@@ -19,6 +19,14 @@ extra-source-files:  examples/Hello.hs
 
 cabal-version:       >=1.10
 
+Flag example
+  Description: Build with example
+  Default: False
+
+Flag testclient
+  Description: Build with backend test client
+  Default: False
+
 source-repository head
   type:     git
   location: https://github.com/lambdacube3d/lambdacube-gl
@@ -36,13 +44,66 @@ library
   -- other-extensions:
   build-depends:
     base >=4.7 && <4.9,
-    containers >=0.5 && <0.6, 
-    mtl >=2.2 && <2.3, 
-    bytestring >=0.10 && <0.11, 
-    vector >=0.11 && <0.12, 
-    vector-algorithms >=0.7 && <0.8, 
+    containers >=0.5 && <0.6,
+    mtl >=2.2 && <2.3,
+    bytestring >=0.10 && <0.11,
+    vector >=0.11 && <0.12,
+    vector-algorithms >=0.7 && <0.8,
     JuicyPixels >=3.2.7 && <3.3,
-    OpenGLRaw >=3.1 && <3.2, 
+    OpenGLRaw >=3.1 && <3.2,
     lambdacube-ir == 0.3.*
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+executable lambdacube-gl-hello
+  hs-source-dirs:   examples
+  main-is:          Hello.hs
+  default-language: Haskell2010
+
+  -- CAUTION: When the build-depends change, please bump the git submodule in lambdacube-docker repository
+  build-depends:
+    base < 4.9,
+    containers >=0.5 && <0.6,
+    bytestring >=0.10 && <0.11,
+    vector >=0.11 && <0.12,
+    JuicyPixels >=3.2 && <3.3,
+    aeson >= 0.9 && <1,
+    GLFW-b >= 1.4 && <1.5,
+    lambdacube-gl,
+    lambdacube-ir == 0.3.*
+
+  if flag(example)
+    Buildable: True
+  else
+    Buildable: False
+
+executable lambdacube-gl-test-client
+  hs-source-dirs:   testclient
+  main-is:          client.hs
+  default-language: Haskell2010
+
+  other-modules:    TestData
+
+  -- CAUTION: When the build-depends change, please bump the git submodule in lambdacube-docker repository
+  build-depends:
+    base < 4.9,
+    containers >=0.5 && <0.6,
+    text >= 1.2 && <1.3,
+    time >= 1.5 && <1.6,
+    exceptions >= 0.8 && <0.9,
+    bytestring >=0.10 && <0.11,
+    base64-bytestring >=1 && <1.1,
+    vector >=0.11 && <0.12,
+    JuicyPixels >=3.2 && <3.3,
+    aeson >= 0.9 && <1,
+    websockets >= 0.9 && <1,
+    network >= 2.6 && <2.7,
+    OpenGLRaw >=3.1 && <3.2,
+    GLFW-b >= 1.4 && <1.5,
+    lambdacube-gl,
+    lambdacube-ir == 0.3.*
+
+  if flag(testclient)
+    Buildable: True
+  else
+    Buildable: False
