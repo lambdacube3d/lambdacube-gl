@@ -17,7 +17,7 @@ import LambdaCube.Compiler as LambdaCube -- compiler
 main :: IO ()
 main = do
     -- compile hello.lc to graphics pipeline description
-    pipelineDesc <- LambdaCube.compileMain ["."] OpenGL33 "hello" >>= \case
+    pipelineDesc <- LambdaCube.compileMain ["."] OpenGL33 "hello.lc" >>= \case
       Left err  -> fail $ "compile error:\n" ++ err
       Right pd  -> return pd
 
