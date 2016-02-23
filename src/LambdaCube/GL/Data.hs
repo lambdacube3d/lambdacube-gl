@@ -68,20 +68,10 @@ uploadTexture2DToGPU = uploadTexture2DToGPU' True False True False
 uploadTexture2DToGPU' :: Bool -> Bool -> Bool -> Bool -> DynamicImage -> IO TextureData
 uploadTexture2DToGPU' isFiltered isSRGB isMip isClamped bitmap' = do
     let bitmap = case bitmap' of
-          ImageRGB8 i@(Image w h _)   -> bitmap' -- pixelFoldMap (\(PixelRGB8 r g b) -> [PixelRGBA8 r g b maxBound]) i
-          ImageRGBA8 i@(Image w h _)  -> bitmap' -- pixelFoldMap (\(PixelRGBA8 r g b a) -> [PixelRGBA8 r g b a]) i
-          ImageYCbCr8 i@(Image w h _) -> ImageRGB8 $ convertImage i -- $ Image w h $ SV.fromList $ pixelFoldMap (\p -> let PixelRGB8 r g b = convertPixel p in [PixelRGBA8 r g b maxBound]) i
-          ImageCMYK16 _   -> error "uploadTexture2DToGPU: ImageCMYK16"
-          ImageCMYK8 _    -> error "uploadTexture2DToGPU: ImageCMYK8"
-          ImageRGBA16 _   -> error "uploadTexture2DToGPU: ImageRGBA16"
-          ImageRGBF _     -> error "uploadTexture2DToGPU: ImageRGBF"
-          ImageRGB16 _    -> error "uploadTexture2DToGPU: ImageRGB16"
-          ImageYA16 _     -> error "uploadTexture2DToGPU: ImageYA16"
-          ImageYA8 _      -> error "uploadTexture2DToGPU: ImageYA8"
-          ImageYF _       -> error "uploadTexture2DToGPU: ImageYF"
-          ImageY16 _      -> error "uploadTexture2DToGPU: ImageY16"
-          ImageY8 _       -> error "uploadTexture2DToGPU: ImageY8"
-          _ -> error "uploadTexture2DToGPU: unknown image"
+          ImageRGB8 i@(Image w h _)   -> bitmap'
+          ImageRGBA8 i@(Image w h _)  -> bitmap'
+          ImageYCbCr8 i@(Image w h _) -> ImageRGB8 $ convertImage i
+          di -> ImageRGBA8 $ convertRGBA8 di
 
     glPixelStorei GL_UNPACK_ALIGNMENT 1
     to <- alloca $! \pto -> glGenTextures 1 pto >> peek pto
