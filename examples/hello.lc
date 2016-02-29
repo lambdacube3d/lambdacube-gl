@@ -13,4 +13,4 @@ makeFrame (time :: Float)
 main = renderFrame $
    makeFrame (Uniform "time")
              (Texture2DSlot "diffuseTexture")
-             (fetch_ "objects" (Attribute "position", Attribute "uv"))
+             (fetch "objects" (Attribute "position", Attribute "uv"))

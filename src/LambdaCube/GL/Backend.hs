@@ -701,7 +701,6 @@ renderSlot cmds = forM_ cmds $ \cmd -> do
 
 renderFrame :: GLRenderer -> IO ()
 renderFrame glp = do
-    glEnable GL_FRAMEBUFFER_SRGB
     glBindVertexArray (glVAO glp)
     forM_ (glCommands glp) $ \cmd -> do
         case cmd of
