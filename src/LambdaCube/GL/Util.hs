@@ -341,7 +341,7 @@ streamToInputType s = case s of
         | 0 <= i && i < V.length a &&
           if elem t integralTypes then elem at integralArrTypes else True
         -> fromStreamType t
-        | otherwise -> throw $ userError "streamToInputType failed"
+        | otherwise -> error "streamToInputType failed"
       where
         at = arrType $! (a V.! i)
         integralTypes    = [Attribute_Word, Attribute_V2U, Attribute_V3U, Attribute_V4U, Attribute_Int, Attribute_V2I, Attribute_V3I, Attribute_V4I]

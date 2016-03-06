@@ -78,15 +78,15 @@ addObject :: GLStorage -> String -> Primitive -> Maybe (IndexStream Buffer) -> M
 addObject input slotName prim indices attribs uniformNames = do
     let sch = schema input
     forM_ uniformNames $ \n -> case Map.lookup n (uniforms sch) of
-        Nothing -> throw $ userError $ "Unknown uniform: " ++ show n
+        Nothing -> fail $ "Unknown uniform: " ++ show n
         _ -> return ()
     case Map.lookup slotName (objectArrays sch) of
-        Nothing -> throw $ userError $ "Unknown slot: " ++ show slotName
+        Nothing -> fail $ "Unknown slot: " ++ show slotName
         Just (ObjectArraySchema sPrim sAttrs) -> do
-            when (sPrim /= (primitiveToFetchPrimitive prim)) $ throw $ userError $
+            when (sPrim /= (primitiveToFetchPrimitive prim)) $ fail $
                 "Primitive mismatch for slot (" ++ show slotName ++ ") expected " ++ show sPrim  ++ " but got " ++ show prim
             let sType = fmap streamToStreamType attribs
-            when (sType /= sAttrs) $ throw $ userError $ unlines $ 
+            when (sType /= sAttrs) $ fail $ unlines $ 
                 [ "Attribute stream mismatch for slot (" ++ show slotName ++ ") expected "
                 , show sAttrs
                 , " but got "
