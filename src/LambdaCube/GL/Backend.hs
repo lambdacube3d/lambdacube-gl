@@ -4,6 +4,7 @@ module LambdaCube.GL.Backend where
 import Control.Applicative
 import Control.Monad
 import Control.Monad.State
+import Data.Maybe
 import Data.Bits
 import Data.IORef
 import Data.IntMap (IntMap)
@@ -264,7 +265,7 @@ compileProgram p = do
         , inputUniforms         = Map.fromList inUniforms
         , inputTextures         = Map.fromList inTextures
         , inputTextureUniforms  = S.fromList $ texUnis
-        , inputStreams          = Map.fromList [(n,(idx, attrName)) | (n,idx) <- Map.toList $ attributes, let Just attrName = Map.lookup n lcStreamName]
+        , inputStreams          = Map.fromList [(n,(idx, attrName)) | (n,idx) <- Map.toList $ attributes, let attrName = fromMaybe (error $ "missing attribute: " ++ n) $ Map.lookup n lcStreamName]
         }
 
 compileRenderTarget :: Vector TextureDescriptor -> Vector GLTexture -> RenderTarget -> IO GLRenderTarget
@@ -393,7 +394,7 @@ compileStreamData s = do
   buffer <- compileBuffer arrays
   cmdRef <- newIORef []
   let toStream (n,i) = (n,Stream
-        { streamType    = fromJust $ toStreamType =<< Map.lookup n (IR.streamType s)
+        { streamType    = fromMaybe (error $ "missing attribute: " ++ n) $ toStreamType =<< Map.lookup n (IR.streamType s)
         , streamBuffer  = buffer
         , streamArrIdx  = i
         , streamStart   = 0
@@ -436,7 +437,7 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds ++ s
         uniInputType (GLUniform ty _) = ty
 
     -- object attribute stream commands
-    streamCmds = [attrCmd i s | (i,name) <- Map.elems attrMap, let Just s = Map.lookup name attrs]
+    streamCmds = [attrCmd i s | (i,name) <- Map.elems attrMap, let s = fromMaybe (error $ "missing attribute: " ++ name) $ Map.lookup name attrs]
       where 
         attrMap = inputStreams prg
         attrCmd i s = case s of
@@ -603,7 +604,7 @@ setStorage' p@GLRenderer{..} input' = do
                     return (i,Nothing)
             -- create input connection
             let sm      = slotMap input
-                pToI    = [i | n <- glSlotNames, let Just i = Map.lookup n sm]
+                pToI    = [i | n <- glSlotNames, let i = fromMaybe (error $ "missing object array: " ++ n) $ Map.lookup n sm]
                 iToP    = V.update (V.replicate (Map.size sm) Nothing) (V.imap (\i v -> (v, Just i)) pToI)
             writeIORef glInput $ Just $ InputConnection idx input pToI iToP
 

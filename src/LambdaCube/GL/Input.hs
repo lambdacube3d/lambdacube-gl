@@ -5,6 +5,7 @@ import Control.Applicative
 import Control.Exception
 import Control.Monad
 import Control.Monad.Writer
+import Data.Maybe
 import Data.IORef
 import Data.Map (Map)
 import Data.IntMap (IntMap)
@@ -101,7 +102,7 @@ addObject input slotName prim indices attribs uniformNames = do
     enabled <- newIORef True
     index <- readIORef seed
     modifyIORef seed (1+)
-    (setters,unis) <- mkUniform [(n,t) | n <- uniformNames, let Just t = Map.lookup n (uniforms sch)]
+    (setters,unis) <- mkUniform [(n,t) | n <- uniformNames, let t = fromMaybe (error $ "missing uniform: " ++ n) $ Map.lookup n (uniforms sch)]
     cmdsRef <- newIORef (V.singleton V.empty)
     let obj = Object
             { objSlot       = slotIdx
@@ -216,7 +217,7 @@ createObjectCommands texUnitMap topUnis obj prg = objUniCmds ++ objStreamCmds ++
         uniInputType (GLUniform ty _) = ty
 
     -- object attribute stream commands
-    objStreamCmds = [attrCmd i s | (i,name) <- Map.elems attrMap, let Just s = Map.lookup name objAttrs]
+    objStreamCmds = [attrCmd i s | (i,name) <- Map.elems attrMap, let s = fromMaybe (error $ "missing attribute: " ++ name) $ Map.lookup name objAttrs]
       where 
         attrMap = inputStreams prg
         objAttrs = objAttributes obj

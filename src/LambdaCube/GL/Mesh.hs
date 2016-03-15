@@ -50,7 +50,7 @@ data GPUMesh
 addMeshToObjectArray :: GLStorage -> String -> [String] -> GPUMesh -> IO Object
 addMeshToObjectArray input slotName objUniNames (GPUMesh _ (GPUData prim streams indices _)) = do
     -- select proper attributes
-    let Just (ObjectArraySchema slotPrim slotStreams) = Map.lookup slotName $! objectArrays $! schema input
+    let (ObjectArraySchema slotPrim slotStreams) = fromMaybe (error $ "missing object array: " ++ slotName) $ Map.lookup slotName $! objectArrays $! schema input
         filterStream n _ = Map.member n slotStreams
     addObject input slotName prim indices (Map.filterWithKey filterStream streams) objUniNames
 
@@ -82,7 +82,7 @@ updateMesh :: GPUMesh -> [(String,MeshAttribute)] -> Maybe MeshPrimitive -> IO (
 updateMesh (GPUMesh (Mesh dMA dMP) (GPUData _ dS dI _)) al mp = do
   -- check type match
   let arrayChk (Array t1 s1 _) (Array t2 s2 _) = t1 == t2 && s1 == s2
-      ok = and [Map.member n dMA && arrayChk (meshAttrToArray a1) (meshAttrToArray a2) | (n,a1) <- al, let Just a2 = Map.lookup n dMA]
+      ok = and [Map.member n dMA && arrayChk (meshAttrToArray a1) (meshAttrToArray a2) | (n,a1) <- al, let a2 = fromMaybe (error $ "missing mesh attribute: " ++ n) $ Map.lookup n dMA]
   if not ok then putStrLn "updateMesh: attribute mismatch!"
     else do
       forM_ al $ \(n,a) -> do
