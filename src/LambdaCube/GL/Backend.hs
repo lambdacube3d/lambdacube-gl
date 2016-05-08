@@ -247,6 +247,19 @@ compileProgram p = do
         inTextureNames = programInTextures p
         inTextures = L.filter (\(n,v) -> Map.member n inTextureNames) $ Map.toList $ uniforms
         texUnis = [n | (n,_) <- inTextures, Map.member n (programUniforms p)]
+    let prgInTextures = Map.keys inTextureNames
+        uniInTextures = map fst inTextures
+    unless (S.fromList prgInTextures == S.fromList uniInTextures) $ fail $ unlines
+      [ "shader program uniform texture input mismatch!"
+      , "expected: " ++ show prgInTextures
+      , "actual: " ++ show uniInTextures
+      , "vertex shader:"
+      , vertexShader p
+      , "geometry shader:"
+      , fromMaybe "" (geometryShader p)
+      , "fragment shader:"
+      , fragmentShader p
+      ]
     --putStrLn $ "uniTrie: " ++ show (Map.keys uniTrie)
     --putStrLn $ "inUniNames: " ++ show inUniNames
     --putStrLn $ "inUniforms: " ++ show inUniforms
