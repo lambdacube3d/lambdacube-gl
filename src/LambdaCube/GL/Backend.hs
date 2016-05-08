@@ -249,6 +249,7 @@ compileProgram p = do
         texUnis = [n | (n,_) <- inTextures, Map.member n (programUniforms p)]
     let prgInTextures = Map.keys inTextureNames
         uniInTextures = map fst inTextures
+    {-
     unless (S.fromList prgInTextures == S.fromList uniInTextures) $ fail $ unlines
       [ "shader program uniform texture input mismatch!"
       , "expected: " ++ show prgInTextures
@@ -260,6 +261,7 @@ compileProgram p = do
       , "fragment shader:"
       , fragmentShader p
       ]
+    -}
     --putStrLn $ "uniTrie: " ++ show (Map.keys uniTrie)
     --putStrLn $ "inUniNames: " ++ show inUniNames
     --putStrLn $ "inUniforms: " ++ show inUniforms
@@ -788,7 +790,7 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
     SetSamplerUniform n tu      -> do
                                     p <- currentProgram <$> get
                                     case Map.lookup n (inputTextures $ programs ! p) of
-                                        Nothing -> fail $ "internal error (SetSamplerUniform)! - " ++ show cmd
+                                        Nothing -> return (GLSetProgram (programObject $ programs ! p) {-HACK!!! we have to emit something-}) -- TODO: some drivers does heavy cross stage (vertex/fragment) dead code elimination; fail $ "internal error (SetSamplerUniform)! - " ++ show cmd
                                         Just i  -> case Map.lookup n texUnitMap of
                                             Nothing -> fail $ "internal error (SetSamplerUniform - IORef)! - " ++ show cmd
                                             Just r  -> return $ GLSetSamplerUniform i (fromIntegral tu) r
