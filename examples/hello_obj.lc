@@ -1,4 +1,5 @@
 makeFrame (time :: Float)
+          (color :: Vec 4 Float)
           (texture :: Texture)
           (prims :: PrimitiveStream Triangle (Vec 4 Float, Vec 3 Float, Vec 3 Float))
 
@@ -7,10 +8,11 @@ makeFrame (time :: Float)
       prims
     & mapPrimitives (\(p,n,uvw) -> (perspective 0.1 100 45 1 *. lookat (V3 0 0 5) (V3 0 0 0) (V3 0 1 0) *. rotMatrixX time *. rotMatrixZ time *. p, V2 uvw%x (1 - uvw%y) ))
     & rasterizePrimitives (TriangleCtx CullBack PolygonFill NoOffset LastVertex) ((Smooth))
-    & mapFragments (\((uv)) -> ((texture2D (Sampler PointFilter MirroredRepeat texture) uv )))
+    & mapFragments (\((uv)) -> ((color * texture2D (Sampler PointFilter MirroredRepeat texture) uv )))
     & accumulateWith (DepthOp Less True, ColorOp NoBlending (V4 True True True True))
 
 main = renderFrame $
    makeFrame (Uniform "time")
+             (Uniform "diffuseColor")
              (Texture2DSlot "diffuseTexture")
              (fetch "objects" (Attribute "position", Attribute "normal", Attribute "uvw"))

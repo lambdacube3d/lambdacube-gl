@@ -63,7 +63,7 @@ loadOBJToGPU fname = loadOBJ fname >>= \case
     gpuSubModels <- forM subModels $ \(mesh,mat) -> LambdaCubeGL.uploadMeshToGPU mesh >>= \a -> return (a,mat)
     return $ Right (gpuSubModels,mtlLib)
 
-uploadMtlLib :: MtlLib -> IO (Map Text TextureData)
+uploadMtlLib :: MtlLib -> IO (Map Text (ObjMaterial,TextureData))
 uploadMtlLib mtlLib = do
   -- collect used textures
   let usedTextures = nub . concatMap (maybeToList . mtl_map_Kd) $ Map.elems mtlLib
@@ -76,15 +76,16 @@ uploadMtlLib mtlLib = do
     Right img -> LambdaCubeGL.uploadTexture2DToGPU img
   whiteTex <- LambdaCubeGL.uploadTexture2DToGPU whiteImage
   -- pair textures and materials
-  return $ maybe whiteTex (fromMaybe checkerTex . flip Map.lookup textureLib) . mtl_map_Kd <$> mtlLib
+  return $ (\a -> (a, maybe whiteTex (fromMaybe checkerTex . flip Map.lookup textureLib) . mtl_map_Kd $ a)) <$> mtlLib
 
-addOBJToObjectArray :: GLStorage -> String -> [(GPUMesh, Maybe Text)] -> Map Text TextureData -> IO [LambdaCubeGL.Object]
+addOBJToObjectArray :: GLStorage -> String -> [(GPUMesh, Maybe Text)] -> Map Text (ObjMaterial,TextureData) -> IO [LambdaCubeGL.Object]
 addOBJToObjectArray storage slotName objMesh mtlLib = forM objMesh $ \(mesh,mat) -> do
-  obj <- LambdaCubeGL.addMeshToObjectArray storage slotName ["diffuseTexture"] mesh -- diffuseTexture value can change on each model
+  obj <- LambdaCubeGL.addMeshToObjectArray storage slotName ["diffuseTexture","diffuseColor"] mesh -- diffuseTexture and diffuseColor values can change on each model
   case mat >>= flip Map.lookup mtlLib of
     Nothing -> return ()
-    Just t -> LambdaCubeGL.updateObjectUniforms obj $ do
-                "diffuseTexture" @= return t -- set model's diffuse texture
+    Just (ObjMaterial{..},t) -> LambdaCubeGL.updateObjectUniforms obj $ do
+      "diffuseTexture" @= return t -- set model's diffuse texture
+      "diffuseColor" @= let (r,g,b) = mtl_Kd in return (V4 r g b mtl_Tr)
   return obj
 
 main :: IO ()
@@ -102,10 +103,13 @@ main = do
           defUniforms $ do
             "time"            @: Float
             "diffuseTexture"  @: FTexture2D
+            "diffuseColor"    @: V4F
 
     storage <- LambdaCubeGL.allocStorage inputSchema
 
-    objName <- head . (++ ["cube.obj"]) <$> getArgs
+    objName <- getArgs >>= \case
+      [] -> fail "missing .obj argument"
+      a -> return $ head a
     -- load OBJ geometry and material descriptions
     Right (objMesh,mtlLib) <- loadOBJToGPU objName
     -- load materials textures
