@@ -90,7 +90,8 @@ module LambdaCube.GL (
     makeSchema,
 
     (@=),
-    updateUniforms
+    updateUniforms,
+    updateObjectUniforms
 ) where
 
 import LambdaCube.GL.Type

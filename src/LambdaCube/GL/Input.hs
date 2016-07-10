@@ -394,12 +394,12 @@ uniformFTexture2D n is = case Map.lookup n is of
     Just (SFTexture2D fun)    -> fun
     _   -> nullSetter n "FTexture2D"
 
-type UniM = Writer [GLStorage -> IO ()]
+type UniM = Writer [Map GLUniformName InputSetter -> IO ()]
 
 class UniformSetter a where
   (@=) :: GLUniformName -> IO a -> UniM ()
 
-setUniM setUni n act = tell [\s -> let f = setUni n (uniformSetter s) in f =<< act]
+setUniM setUni n act = tell [\s -> let f = setUni n s in f =<< act]
 
 instance UniformSetter Bool   where (@=) = setUniM uniformBool
 instance UniformSetter V2B    where (@=) = setUniM uniformV2B
@@ -428,4 +428,10 @@ instance UniformSetter M43F   where (@=) = setUniM uniformM43F
 instance UniformSetter M44F   where (@=) = setUniM uniformM44F
 instance UniformSetter TextureData where (@=) = setUniM uniformFTexture2D
 
-updateUniforms storage m = sequence_ $ let l = map ($ storage) $ execWriter m in l
+updateUniforms storage m = sequence_ l where
+  setters = uniformSetter storage
+  l = map ($ setters) $ execWriter m
+
+updateObjectUniforms object m = sequence_ l where
+  setters = objectUniformSetter object
+  l = map ($ setters) $ execWriter m
