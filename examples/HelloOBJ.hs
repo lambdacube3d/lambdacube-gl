@@ -107,9 +107,7 @@ main = do
 
     storage <- LambdaCubeGL.allocStorage inputSchema
 
-    objName <- getArgs >>= \case
-      [] -> fail "missing .obj argument"
-      a -> return $ head a
+    objName <- head . (++ ["cube.obj"]) <$> getArgs
     -- load OBJ geometry and material descriptions
     Right (objMesh,mtlLib) <- loadOBJToGPU objName
     -- load materials textures
