@@ -1,5 +1,5 @@
 name:                lambdacube-gl
-version:             0.5.1.0
+version:             0.5.1.1
 synopsis:            OpenGL 3.3 Core Profile backend for LambdaCube 3D
 description:         OpenGL 3.3 Core Profile backend for LambdaCube 3D
 homepage:            http://lambdacube3d.com
@@ -13,9 +13,15 @@ build-type:          Simple
 
 extra-source-files:  examples/Hello.hs
                      examples/HelloEmbedded.hs
+                     examples/HelloOBJ.hs
+                     examples/MtlParser.hs
                      examples/hello.json
                      examples/hello.lc
+                     examples/hello_obj.json
+                     examples/hello_obj.lc
                      examples/logo.png
+                     examples/cube.obj
+                     examples/cube.mtl
 
 cabal-version:       >=1.10
 
