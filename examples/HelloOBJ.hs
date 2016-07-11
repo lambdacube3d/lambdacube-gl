@@ -36,7 +36,7 @@ objToMesh WavefrontOBJ{..} = [(toMesh faceGroup, elMtl . head $ faceGroup) | fac
     } where
         triangulate (Triangle a b c) = [a,b,c]
         triangulate (Quad a b c d) = [a,b,c, c,d,a]
-        triangulate _ = []
+        triangulate (Face a b c l) = a : b : c : concatMap (\(x,y) -> [a,x,y]) (zip (c:l) l) -- should work for convex polygons without holes
         defaultPosition = Location 0 0 0 0
         defaultNormal = Normal 0 0 0
         defaultTexCoord = TexCoord 0 0 0
