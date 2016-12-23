@@ -133,15 +133,14 @@ addObject input slotName prim indices attribs uniformNames = do
             Just ic <- readIORef $ glInput p
             case icSlotMapInputToPipeline ic ! slotIdx of
                 Nothing         -> do
-                    putStrLn $ " ** slot is not used!"
+                    --putStrLn $ " ** slot is not used!"
                     return V.empty   -- this slot is not used in that pipeline
                 Just pSlotIdx   -> do
-                    putStrLn "slot is used!" 
+                    --putStrLn "slot is used!" 
                     --where
                     let emptyV = V.replicate (V.length $ glPrograms p) []
                     return $ emptyV // [(prgIdx,createObjectCommands (glTexUnitMapping p) topUnis obj (glPrograms p ! prgIdx))| prgIdx <- glSlotPrograms p ! pSlotIdx]
     writeIORef cmdsRef cmds
-    sortSlotObjects input
     return obj
 
 removeObject :: GLStorage -> Object -> IO ()
@@ -154,7 +153,6 @@ setObjectOrder :: GLStorage -> Object -> Int -> IO ()
 setObjectOrder p obj i = do
     writeIORef (objOrder obj) i
     modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot objs sorted _) -> GLSlot objs sorted Reorder
-    sortSlotObjects p
 
 objectUniformSetter :: Object -> Map GLUniformName InputSetter
 objectUniformSetter = objUniSetter

@@ -50,6 +50,7 @@ module LambdaCube.GL (
     setObjectOrder,
     objectUniformSetter,
     setScreenSize,
+    sortSlotObjects,
 
     uniformBool,
     uniformV2B,

@@ -750,14 +750,16 @@ renderFrame glp = do
                                                 case input of
                                                     Nothing -> putStrLn "Warning: No pipeline input!" >> return ()
                                                     Just ic -> do
-                                                        GLSlot _ objs _ <- readIORef (slotVector (icInput ic) ! (icSlotMapPipelineToInput ic ! slotIdx))
-                                                        --putStrLn $ "Rendering " ++ show (V.length objs) ++ " objects"
-                                                        V.forM_ objs $ \(_,obj) -> do
-                                                            enabled <- readIORef $ objEnabled obj
-                                                            when enabled $ do
+                                                        let draw obj = do
+                                                              enabled <- readIORef $ objEnabled obj
+                                                              when enabled $ do
                                                                 cmd <- readIORef $ objCommands obj
                                                                 --putStrLn "Render object"
                                                                 renderSlot ((cmd ! icId ic) ! progIdx)
+                                                        --putStrLn $ "Rendering " ++ show (V.length objs) ++ " objects"
+                                                        readIORef (slotVector (icInput ic) ! (icSlotMapPipelineToInput ic ! slotIdx)) >>= \case
+                                                          GLSlot _ objs Ordered -> forM_ objs $ draw . snd
+                                                          GLSlot objMap _ _ -> forM_ objMap draw
             {-
             GLSetSampler
             GLSaveImage

@@ -1,5 +1,5 @@
 name:                lambdacube-gl
-version:             0.5.1.2
+version:             0.5.2.0
 synopsis:            OpenGL 3.3 Core Profile backend for LambdaCube 3D
 description:         OpenGL 3.3 Core Profile backend for LambdaCube 3D
 homepage:            http://lambdacube3d.com
