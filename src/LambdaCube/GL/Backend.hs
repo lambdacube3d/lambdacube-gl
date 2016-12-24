@@ -772,7 +772,7 @@ setupDrawContext glForceSetup glDrawContextRef glInput new = do
     glBindSampler (GL_TEXTURE0 + fromIntegral textureUnit) glSamplerObject
 
   -- setup sampler uniform mapping
-  setup glSamplerUniformMapping $ mapM_ $ \(textureUnit,GLSamplerUniform{..}) -> do
+  forM_ (glSamplerUniformMapping new) $ \(textureUnit,GLSamplerUniform{..}) -> do
     glUniform1i glUniformBinding (fromIntegral textureUnit)
     writeIORef glUniformBindingRef (fromIntegral textureUnit)
 
