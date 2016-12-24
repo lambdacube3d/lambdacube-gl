@@ -128,7 +128,7 @@ data GLTexture
     = GLTexture
     { glTextureObject   :: GLuint
     , glTextureTarget   :: GLenum
-    }
+    } deriving Eq
 
 data InputConnection
     = InputConnection
@@ -159,34 +159,50 @@ data GLRenderer
     , glVAO             :: GLuint
     , glTexUnitMapping  :: Map String (IORef GLint)   -- maps texture uniforms to texture units
     , glStreams         :: Vector GLStream
+    , glDrawContextRef  :: IORef GLDrawContext
+    , glForceSetup      :: IORef Bool
+    , glVertexBufferRef :: IORef GLuint
+    , glIndexBufferRef  :: IORef GLuint
     }
 
 data GLSampler
     = GLSampler
     { glSamplerObject :: GLuint
-    }
+    } deriving Eq
 
 data GLRenderTarget
     = GLRenderTarget
     { framebufferObject         :: GLuint
     , framebufferDrawbuffers    :: Maybe [GLenum]
-    }
+    } deriving Eq
+
+type GLTextureUnit = Int
+type GLUniformBinding = GLint
+
+data GLSamplerUniform
+  = GLSamplerUniform
+  { glUniformBinding    :: GLUniformBinding
+  , glUniformBindingRef :: IORef GLUniformBinding
+  }
+
+instance Eq GLSamplerUniform where
+  a == b = glUniformBinding a == glUniformBinding b
+
+data GLDrawContext
+  = GLDrawContext
+  { glRasterContext         :: RasterContext
+  , glAccumulationContext   :: AccumulationContext
+  , glRenderTarget          :: GLRenderTarget
+  , glProgram               :: GLuint
+  , glTextureMapping        :: [(GLTextureUnit,GLTexture)]
+  , glSamplerMapping        :: [(GLTextureUnit,GLSampler)]
+  , glSamplerUniformMapping :: [(GLTextureUnit,GLSamplerUniform)]
+  }
 
 data GLCommand
-    = GLSetRasterContext        !RasterContext
-    | GLSetAccumulationContext  !AccumulationContext
-    | GLSetRenderTarget         !GLuint !(Maybe [GLenum])
-    | GLSetProgram              !GLuint
-    | GLSetSamplerUniform       !GLint !GLint (IORef GLint)                     -- sampler index, texture unit, IORef stores the actual texture unit mapping
-    | GLSetTexture              !GLenum !GLuint !GLuint
-    | GLSetSampler              !GLuint !GLuint
-    | GLRenderSlot              !SlotName !ProgramName
-    | GLRenderStream            !StreamName !ProgramName
-    | GLClearRenderTarget       [ClearImage]
-    | GLGenerateMipMap          !GLenum !GLenum
-    | GLSaveImage               FrameBufferComponent ImageRef                   -- from framebuffer component to texture (image)
-    | GLLoadImage               ImageRef FrameBufferComponent                   -- from texture (image) to framebuffer component
-    deriving Show
+  = GLRenderSlot          GLDrawContext SlotName ProgramName
+  | GLRenderStream        GLDrawContext StreamName ProgramName
+  | GLClearRenderTarget   GLRenderTarget [ClearImage]
 
 instance Show (IORef GLint) where
     show _ = "(IORef GLint)"

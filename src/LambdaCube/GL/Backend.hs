@@ -1,9 +1,9 @@
-{-# LANGUAGE TupleSections, MonadComprehensions, RecordWildCards, LambdaCase #-}
+{-# LANGUAGE TupleSections, MonadComprehensions, RecordWildCards, LambdaCase, FlexibleContexts #-}
 module LambdaCube.GL.Backend where
 
 import Control.Applicative
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Data.Maybe
 import Data.Bits
 import Data.IORef
@@ -497,23 +497,31 @@ allocRenderer p = do
     -- texture unit mapping ioref trie
     -- texUnitMapRefs :: Map UniformName (IORef TextureUnit)
     texUnitMapRefs <- Map.fromList <$> mapM (\k -> (k,) <$> newIORef 0) (S.toList $ S.fromList $ concat $ V.toList $ V.map (Map.keys . programInTextures) $ programs p)
-    let (cmds,st) = runState (mapM (compileCommand texUnitMapRefs smps texs trgs prgs) $ V.toList $ commands p) initCGState
+    let st = execState (mapM_ (compileCommand texUnitMapRefs smps texs trgs prgs) (V.toList $ commands p)) initCGState
     input <- newIORef Nothing
     -- default Vertex Array Object
     vao <- alloca $! \pvao -> glGenVertexArrays 1 pvao >> peek pvao
     strs <- V.mapM compileStreamData $ streams p
+    drawContextRef <- newIORef $ error "missing DrawContext"
+    forceSetup <- newIORef True
+    vertexBufferRef <- newIORef 0
+    indexBufferRef <- newIORef 0
     return $ GLRenderer
         { glPrograms        = prgs
         , glTextures        = texs
         , glSamplers        = smps
         , glTargets         = trgs
-        , glCommands        = cmds
+        , glCommands        = reverse $ drawCommands st
         , glSlotPrograms    = V.map (V.toList . slotPrograms) $ IR.slots p
         , glInput           = input
         , glSlotNames       = V.map slotName $ IR.slots p
         , glVAO             = vao
         , glTexUnitMapping  = texUnitMapRefs
         , glStreams         = strs
+        , glDrawContextRef  = drawContextRef
+        , glForceSetup      = forceSetup
+        , glVertexBufferRef = vertexBufferRef
+        , glIndexBufferRef  = indexBufferRef
         }
 
 disposeRenderer :: GLRenderer -> IO ()
@@ -684,20 +692,26 @@ setStorage' p@GLRenderer{..} input' = do
     buffer binding on various targets: GL_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER
     glEnable/DisableVertexAttribArray
 -}
-renderSlot :: [GLObjectCommand] -> IO ()
-renderSlot cmds = forM_ cmds $ \cmd -> do
+renderSlot :: IORef GLuint -> IORef GLuint -> [GLObjectCommand] -> IO ()
+renderSlot glVertexBufferRef glIndexBufferRef cmds = forM_ cmds $ \cmd -> do
+    let setup ref v m = do
+          old <- readIORef ref
+          unless (old == v) $ do
+            writeIORef ref v
+            m
+
     case cmd of
         GLSetVertexAttribArray idx buf size typ ptr     -> do
-                                                            glBindBuffer GL_ARRAY_BUFFER buf
+                                                            setup glVertexBufferRef buf $ glBindBuffer GL_ARRAY_BUFFER buf
                                                             glEnableVertexAttribArray idx
                                                             glVertexAttribPointer idx size typ (fromIntegral GL_FALSE) 0 ptr
         GLSetVertexAttribIArray idx buf size typ ptr    -> do
-                                                            glBindBuffer GL_ARRAY_BUFFER buf
+                                                            setup glVertexBufferRef buf $ glBindBuffer GL_ARRAY_BUFFER buf
                                                             glEnableVertexAttribArray idx
                                                             glVertexAttribIPointer idx size typ 0 ptr
         GLDrawArrays mode first count                   -> glDrawArrays mode first count
         GLDrawElements mode count typ buf indicesPtr    -> do
-                                                            glBindBuffer GL_ELEMENT_ARRAY_BUFFER buf
+                                                            setup glIndexBufferRef buf $ glBindBuffer GL_ELEMENT_ARRAY_BUFFER buf
                                                             glDrawElements mode count typ indicesPtr
         GLSetUniform idx (GLUniform ty ref)             -> setUniform idx ty ref
         GLBindTexture txTarget tuRef (GLUniform _ ref)  -> do
@@ -715,105 +729,175 @@ renderSlot cmds = forM_ cmds $ \cmd -> do
     --isOk <- checkGL
     --putStrLn $ isOk ++ " - " ++ show cmd
 
+setupRenderTarget glInput GLRenderTarget{..} = do
+  -- set target viewport
+  ic' <- readIORef glInput
+  case ic' of
+      Nothing -> return ()
+      Just ic -> do
+                  let input = icInput ic
+                  (w,h) <- readIORef $ screenSize input
+                  glViewport 0 0 (fromIntegral w) (fromIntegral h)
+  -- TODO: set FBO target viewport
+  glBindFramebuffer GL_DRAW_FRAMEBUFFER framebufferObject
+  case framebufferDrawbuffers of
+      Nothing -> return ()
+      Just bl -> withArray bl $ glDrawBuffers (fromIntegral $ length bl)
+
+setupDrawContext glForceSetup glDrawContextRef glInput new = do
+  old <- readIORef glDrawContextRef
+  writeIORef glDrawContextRef new
+  force <- readIORef glForceSetup
+  writeIORef glForceSetup False
+
+  let setup :: Eq a => (GLDrawContext -> a) -> (a -> IO ()) -> IO ()
+      setup f m = case force of
+        True -> m $ f new
+        False -> do
+          let a = f new
+          unless (a == f old) $ m a
+
+  setup glRenderTarget $ setupRenderTarget glInput
+  setup glRasterContext $ setupRasterContext
+  setup glAccumulationContext setupAccumulationContext
+  setup glProgram glUseProgram
+
+  -- setup texture mapping
+  setup glTextureMapping $ mapM_ $ \(textureUnit,GLTexture{..}) -> do
+    glActiveTexture (GL_TEXTURE0 + fromIntegral textureUnit)
+    glBindTexture glTextureTarget glTextureObject
+
+  -- setup sampler mapping
+  setup glSamplerMapping $ mapM_ $ \(textureUnit,GLSampler{..}) -> do
+    glBindSampler (GL_TEXTURE0 + fromIntegral textureUnit) glSamplerObject
+
+  -- setup sampler uniform mapping
+  setup glSamplerUniformMapping $ mapM_ $ \(textureUnit,GLSamplerUniform{..}) -> do
+    glUniform1i glUniformBinding (fromIntegral textureUnit)
+    writeIORef glUniformBindingRef (fromIntegral textureUnit)
+
 renderFrame :: GLRenderer -> IO ()
-renderFrame glp = do
-    glBindVertexArray (glVAO glp)
-    forM_ (glCommands glp) $ \cmd -> do
+renderFrame GLRenderer{..} = do
+    writeIORef glForceSetup True
+    writeIORef glVertexBufferRef 0
+    writeIORef glIndexBufferRef 0
+    glBindVertexArray glVAO
+    forM_ glCommands $ \cmd -> do
         case cmd of
-            GLSetRasterContext rCtx         -> setupRasterContext rCtx
-            GLSetAccumulationContext aCtx   -> setupAccumulationContext aCtx
-            GLSetRenderTarget rt bufs       -> do
-                                                -- set target viewport
-                                               --when (rt == 0) $ do -- screen out
-                                                ic' <- readIORef $ glInput glp
-                                                case ic' of
-                                                    Nothing -> return ()
-                                                    Just ic -> do
-                                                                let input = icInput ic
-                                                                (w,h) <- readIORef $ screenSize input
-                                                                glViewport 0 0 (fromIntegral w) (fromIntegral h)
-                                                -- TODO: set FBO target viewport
-                                                glBindFramebuffer GL_DRAW_FRAMEBUFFER rt
-                                                case bufs of
-                                                    Nothing -> return ()
-                                                    Just bl -> withArray bl $ glDrawBuffers (fromIntegral $ length bl)
-            GLSetProgram p                  -> glUseProgram p
-            GLSetSamplerUniform i tu ref    -> glUniform1i i tu >> writeIORef ref tu
-            GLSetTexture tu target tx       -> glActiveTexture tu >> glBindTexture target tx
-            GLSetSampler tu s               -> glBindSampler tu s
-            GLClearRenderTarget vals        -> clearRenderTarget vals
-            GLGenerateMipMap tu target      -> glActiveTexture tu >> glGenerateMipmap target
-            GLRenderStream streamIdx progIdx  -> do
-                                                renderSlot =<< readIORef (glStreamCommands $ glStreams glp ! streamIdx)
-            GLRenderSlot slotIdx progIdx    -> do
-                                                input <- readIORef (glInput glp)
-                                                case input of
-                                                    Nothing -> putStrLn "Warning: No pipeline input!" >> return ()
-                                                    Just ic -> do
-                                                        let draw obj = do
-                                                              enabled <- readIORef $ objEnabled obj
-                                                              when enabled $ do
-                                                                cmd <- readIORef $ objCommands obj
-                                                                --putStrLn "Render object"
-                                                                renderSlot ((cmd ! icId ic) ! progIdx)
-                                                        --putStrLn $ "Rendering " ++ show (V.length objs) ++ " objects"
-                                                        readIORef (slotVector (icInput ic) ! (icSlotMapPipelineToInput ic ! slotIdx)) >>= \case
-                                                          GLSlot _ objs Ordered -> forM_ objs $ draw . snd
-                                                          GLSlot objMap _ _ -> forM_ objMap draw
-            {-
-            GLSetSampler
-            GLSaveImage
-            GLLoadImage
-            -}
+            GLClearRenderTarget rt vals -> do
+              setupRenderTarget glInput rt
+              clearRenderTarget vals
+              modifyIORef glDrawContextRef $ \ctx -> ctx {glRenderTarget = rt}
+
+            GLRenderStream ctx streamIdx progIdx -> do
+              setupDrawContext glForceSetup glDrawContextRef glInput ctx
+              drawcmd <- readIORef (glStreamCommands $ glStreams ! streamIdx)
+              renderSlot glVertexBufferRef glIndexBufferRef drawcmd
+
+            GLRenderSlot ctx slotIdx progIdx -> do
+              input <- readIORef glInput
+              case input of
+                  Nothing -> putStrLn "Warning: No pipeline input!" >> return ()
+                  Just ic -> do
+                      let draw setupDone obj = readIORef (objEnabled obj) >>= \case
+                            False -> return setupDone
+                            True  -> do
+                              unless setupDone $ setupDrawContext glForceSetup glDrawContextRef glInput ctx
+                              drawcmd <- readIORef $ objCommands obj
+                              --putStrLn "Render object"
+                              renderSlot glVertexBufferRef glIndexBufferRef ((drawcmd ! icId ic) ! progIdx)
+                              return True
+                      --putStrLn $ "Rendering " ++ show (V.length objs) ++ " objects"
+                      readIORef (slotVector (icInput ic) ! (icSlotMapPipelineToInput ic ! slotIdx)) >>= \case
+                        GLSlot _ objs Ordered -> foldM_ (\a -> draw a . snd) False objs
+                        GLSlot objMap _ _ -> foldM_ draw False objMap
+
         --isOk <- checkGL
         --putStrLn $ isOk ++ " - " ++ show cmd
 
 data CGState
-    = CGState
-    { currentProgram    :: ProgramName
-    , textureBinding    :: IntMap GLTexture
-    }
+  = CGState
+  { textureBinding        :: IntMap GLTexture
+  , drawCommands          :: [GLCommand]
+  -- draw context data
+  , rasterContext         :: RasterContext
+  , accumulationContext   :: AccumulationContext
+  , renderTarget          :: GLRenderTarget
+  , currentProgram        :: ProgramName
+  , samplerUniformMapping :: [(GLTextureUnit,GLSamplerUniform)]
+  , textureMapping        :: [(GLTextureUnit,GLTexture)]
+  , samplerMapping        :: [(GLTextureUnit,GLSampler)]
+  }
 
 initCGState = CGState
-    { currentProgram    = error "CGState: empty currentProgram"
-    , textureBinding    = IM.empty
-    }
+  { textureBinding        = mempty
+  , drawCommands          = mempty
+  -- draw context data
+  , rasterContext         = error "compileCommand: missing RasterContext"
+  , accumulationContext   = error "compileCommand: missing AccumulationContext"
+  , renderTarget          = error "compileCommand: missing RenderTarget"
+  , currentProgram        = error "compileCommand: missing Program"
+  , samplerUniformMapping = mempty
+  , textureMapping        = mempty
+  , samplerMapping        = mempty
+  }
 
 type CG a = State CGState a
 
-compileCommand :: Map String (IORef GLint) -> Vector GLSampler -> Vector GLTexture -> Vector GLRenderTarget -> Vector GLProgram -> Command -> CG GLCommand
+emit :: GLCommand -> CG ()
+emit cmd = modify $ \s -> s {drawCommands = cmd : drawCommands s}
+
+drawContext programs =
+  GLDrawContext <$> gets rasterContext
+                <*> gets accumulationContext
+                <*> gets renderTarget
+                <*> gets (programObject . (programs !) . currentProgram)
+                <*> gets textureMapping
+                <*> gets samplerMapping
+                <*> gets samplerUniformMapping
+
+compileCommand :: Map String (IORef GLint) -> Vector GLSampler -> Vector GLTexture -> Vector GLRenderTarget -> Vector GLProgram -> Command -> CG ()
 compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
-    SetRasterContext rCtx       -> return $ GLSetRasterContext rCtx
-    SetAccumulationContext aCtx -> return $ GLSetAccumulationContext aCtx
-    SetRenderTarget rt          -> let GLRenderTarget fbo bufs = targets ! rt in return $ GLSetRenderTarget fbo bufs
-    SetProgram p                -> do
-                                    modify (\s -> s {currentProgram = p})
-                                    return $ GLSetProgram $ programObject $ programs ! p
+    SetRasterContext rCtx       -> modify $ \s -> s {rasterContext = rCtx}
+    SetAccumulationContext aCtx -> modify $ \s -> s {accumulationContext = aCtx}
+    SetRenderTarget rt          -> modify $ \s -> s {renderTarget = targets ! rt}
+    SetProgram p                -> modify $ \s -> s
+                                    { currentProgram = p
+                                    , samplerUniformMapping = mempty
+                                    , textureMapping = mempty
+                                    , samplerMapping = mempty
+                                    }
     SetSamplerUniform n tu      -> do
                                     p <- currentProgram <$> get
                                     case Map.lookup n (inputTextures $ programs ! p) of
-                                        Nothing -> return (GLSetProgram (programObject $ programs ! p) {-HACK!!! we have to emit something-}) -- TODO: some drivers does heavy cross stage (vertex/fragment) dead code elimination; fail $ "internal error (SetSamplerUniform)! - " ++ show cmd
+                                        Nothing -> return () -- TODO: some drivers does heavy cross stage (vertex/fragment) dead code elimination; fail $ "internal error (SetSamplerUniform)! - " ++ show cmd
                                         Just i  -> case Map.lookup n texUnitMap of
                                             Nothing -> fail $ "internal error (SetSamplerUniform - IORef)! - " ++ show cmd
-                                            Just r  -> return $ GLSetSamplerUniform i (fromIntegral tu) r
+                                            Just r  -> modify $ \s -> s {samplerUniformMapping = (tu, GLSamplerUniform i r) : samplerUniformMapping s}
     SetTexture tu t             -> do
                                     let tex = textures ! t
-                                    modify (\s -> s {textureBinding = IM.insert tu tex $ textureBinding s})
-                                    return $ GLSetTexture (GL_TEXTURE0 + fromIntegral tu) (glTextureTarget tex) (glTextureObject tex)
-    SetSampler tu s             -> return $ GLSetSampler (GL_TEXTURE0 + fromIntegral tu) (maybe 0 (glSamplerObject . (samplers !)) s)
+                                    modify $ \s -> s
+                                      { textureBinding = IM.insert tu tex $ textureBinding s
+                                      , textureMapping = (tu, tex) : textureMapping s
+                                      }
+    SetSampler tu i             -> modify $ \s -> s {samplerMapping = (tu, maybe (GLSampler 0) (samplers !) i) : samplerMapping s}
+
+    -- draw commands
     RenderSlot slot             -> do
-                                    p <- currentProgram <$> get
-                                    return $ GLRenderSlot slot p
+                                    p <- gets currentProgram
+                                    ctx <- drawContext programs
+                                    emit $ GLRenderSlot ctx slot p
     RenderStream stream         -> do
-                                    p <- currentProgram <$> get
-                                    return $ GLRenderStream stream p
-    ClearRenderTarget vals      -> return $ GLClearRenderTarget $ V.toList vals
+                                    p <- gets currentProgram
+                                    ctx <- drawContext programs
+                                    emit $ GLRenderStream ctx stream p
+    ClearRenderTarget vals      -> do
+                                    rt <- gets renderTarget
+                                    emit $ GLClearRenderTarget rt $ V.toList vals
+{-
     GenerateMipMap tu           -> do
                                     tb <- textureBinding <$> get
                                     case IM.lookup tu tb of
                                         Nothing     -> fail "internal error (GenerateMipMap)!"
                                         Just tex    -> return $ GLGenerateMipMap (GL_TEXTURE0 + fromIntegral tu) (glTextureTarget tex)
-{-
-    SaveImage _ _               -> undefined
-    LoadImage _ _               -> undefined
 -}
