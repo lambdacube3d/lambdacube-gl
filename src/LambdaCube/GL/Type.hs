@@ -181,7 +181,7 @@ type GLUniformBinding = GLint
 
 data GLSamplerUniform
   = GLSamplerUniform
-  { glUniformBinding    :: GLUniformBinding
+  { glUniformBinding    :: !GLUniformBinding
   , glUniformBindingRef :: IORef GLUniformBinding
   }
 
@@ -190,19 +190,19 @@ instance Eq GLSamplerUniform where
 
 data GLDrawContext
   = GLDrawContext
-  { glRasterContext         :: RasterContext
-  , glAccumulationContext   :: AccumulationContext
-  , glRenderTarget          :: GLRenderTarget
-  , glProgram               :: GLuint
-  , glTextureMapping        :: [(GLTextureUnit,GLTexture)]
-  , glSamplerMapping        :: [(GLTextureUnit,GLSampler)]
-  , glSamplerUniformMapping :: [(GLTextureUnit,GLSamplerUniform)]
+  { glRasterContext         :: !RasterContext
+  , glAccumulationContext   :: !AccumulationContext
+  , glRenderTarget          :: !GLRenderTarget
+  , glProgram               :: !GLuint
+  , glTextureMapping        :: ![(GLTextureUnit,GLTexture)]
+  , glSamplerMapping        :: ![(GLTextureUnit,GLSampler)]
+  , glSamplerUniformMapping :: ![(GLTextureUnit,GLSamplerUniform)]
   }
 
 data GLCommand
-  = GLRenderSlot          GLDrawContext SlotName ProgramName
-  | GLRenderStream        GLDrawContext StreamName ProgramName
-  | GLClearRenderTarget   GLRenderTarget [ClearImage]
+  = GLRenderSlot          !GLDrawContext !SlotName !ProgramName
+  | GLRenderStream        !GLDrawContext !StreamName !ProgramName
+  | GLClearRenderTarget   !GLRenderTarget ![ClearImage]
 
 instance Show (IORef GLint) where
     show _ = "(IORef GLint)"
