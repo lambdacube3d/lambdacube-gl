@@ -627,7 +627,7 @@ setStorage' p@GLRenderer{..} input' = do
                     return (i,Nothing)
             -- create input connection
             let sm      = slotMap input
-                pToI    = [i | n <- glSlotNames, let i = fromMaybe (error $ "missing object array: " ++ n) $ Map.lookup n sm]
+                pToI    = [i | n <- glSlotNames, let i = fromMaybe (error $ "setStorage - missing object array: " ++ n) $ Map.lookup n sm]
                 iToP    = V.update (V.replicate (Map.size sm) Nothing) (V.imap (\i v -> (v, Just i)) pToI)
             writeIORef glInput $ Just $ InputConnection idx input pToI iToP
 

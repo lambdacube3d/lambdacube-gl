@@ -50,7 +50,7 @@ data GPUMesh
 addMeshToObjectArray :: GLStorage -> String -> [String] -> GPUMesh -> IO Object
 addMeshToObjectArray input slotName objUniNames (GPUMesh _ (GPUData prim streams indices _)) = do
     -- select proper attributes
-    let (ObjectArraySchema slotPrim slotStreams) = fromMaybe (error $ "missing object array: " ++ slotName) $ Map.lookup slotName $! objectArrays $! schema input
+    let (ObjectArraySchema slotPrim slotStreams) = fromMaybe (error $ "addMeshToObjectArray - missing object array: " ++ slotName) $ Map.lookup slotName $! objectArrays $! schema input
         filterStream n _ = Map.member n slotStreams
     addObject input slotName prim indices (Map.filterWithKey filterStream streams) objUniNames
 
