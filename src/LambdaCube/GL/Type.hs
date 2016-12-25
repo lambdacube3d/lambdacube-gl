@@ -163,6 +163,7 @@ data GLRenderer
     , glForceSetup      :: IORef Bool
     , glVertexBufferRef :: IORef GLuint
     , glIndexBufferRef  :: IORef GLuint
+    , glDrawCallCounterRef :: IORef Int
     }
 
 data GLSampler

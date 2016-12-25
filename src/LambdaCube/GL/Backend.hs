@@ -506,6 +506,7 @@ allocRenderer p = do
     forceSetup <- newIORef True
     vertexBufferRef <- newIORef 0
     indexBufferRef <- newIORef 0
+    drawCallCounterRef <- newIORef 0
     return $ GLRenderer
         { glPrograms        = prgs
         , glTextures        = texs
@@ -522,6 +523,7 @@ allocRenderer p = do
         , glForceSetup      = forceSetup
         , glVertexBufferRef = vertexBufferRef
         , glIndexBufferRef  = indexBufferRef
+        , glDrawCallCounterRef = drawCallCounterRef
         }
 
 disposeRenderer :: GLRenderer -> IO ()
@@ -692,8 +694,8 @@ setStorage' p@GLRenderer{..} input' = do
     buffer binding on various targets: GL_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER
     glEnable/DisableVertexAttribArray
 -}
-renderSlot :: IORef GLuint -> IORef GLuint -> [GLObjectCommand] -> IO ()
-renderSlot glVertexBufferRef glIndexBufferRef cmds = forM_ cmds $ \cmd -> do
+renderSlot :: IORef Int -> IORef GLuint -> IORef GLuint -> [GLObjectCommand] -> IO ()
+renderSlot glDrawCallCounterRef glVertexBufferRef glIndexBufferRef cmds = forM_ cmds $ \cmd -> do
     let setup ref v m = do
           old <- readIORef ref
           unless (old == v) $ do
@@ -709,10 +711,11 @@ renderSlot glVertexBufferRef glIndexBufferRef cmds = forM_ cmds $ \cmd -> do
                                                             setup glVertexBufferRef buf $ glBindBuffer GL_ARRAY_BUFFER buf
                                                             glEnableVertexAttribArray idx
                                                             glVertexAttribIPointer idx size typ 0 ptr
-        GLDrawArrays mode first count                   -> glDrawArrays mode first count
+        GLDrawArrays mode first count                   -> glDrawArrays mode first count >> modifyIORef glDrawCallCounterRef succ
         GLDrawElements mode count typ buf indicesPtr    -> do
                                                             setup glIndexBufferRef buf $ glBindBuffer GL_ELEMENT_ARRAY_BUFFER buf
                                                             glDrawElements mode count typ indicesPtr
+                                                            modifyIORef glDrawCallCounterRef succ
         GLSetUniform idx (GLUniform ty ref)             -> setUniform idx ty ref
         GLBindTexture txTarget tuRef (GLUniform _ ref)  -> do
                                                             txObjVal <- readIORef ref
@@ -781,6 +784,7 @@ renderFrame GLRenderer{..} = do
     writeIORef glForceSetup True
     writeIORef glVertexBufferRef 0
     writeIORef glIndexBufferRef 0
+    writeIORef glDrawCallCounterRef 0
     glBindVertexArray glVAO
     forM_ glCommands $ \cmd -> do
         case cmd of
@@ -792,7 +796,7 @@ renderFrame GLRenderer{..} = do
             GLRenderStream ctx streamIdx progIdx -> do
               setupDrawContext glForceSetup glDrawContextRef glInput ctx
               drawcmd <- readIORef (glStreamCommands $ glStreams ! streamIdx)
-              renderSlot glVertexBufferRef glIndexBufferRef drawcmd
+              renderSlot glDrawCallCounterRef glVertexBufferRef glIndexBufferRef drawcmd
 
             GLRenderSlot ctx slotIdx progIdx -> do
               input <- readIORef glInput
@@ -805,7 +809,7 @@ renderFrame GLRenderer{..} = do
                               unless setupDone $ setupDrawContext glForceSetup glDrawContextRef glInput ctx
                               drawcmd <- readIORef $ objCommands obj
                               --putStrLn "Render object"
-                              renderSlot glVertexBufferRef glIndexBufferRef ((drawcmd ! icId ic) ! progIdx)
+                              renderSlot glDrawCallCounterRef glVertexBufferRef glIndexBufferRef ((drawcmd ! icId ic) ! progIdx)
                               return True
                       --putStrLn $ "Rendering " ++ show (V.length objs) ++ " objects"
                       readIORef (slotVector (icInput ic) ! (icSlotMapPipelineToInput ic ! slotIdx)) >>= \case
@@ -814,6 +818,7 @@ renderFrame GLRenderer{..} = do
 
         --isOk <- checkGL
         --putStrLn $ isOk ++ " - " ++ show cmd
+    --readIORef glDrawCallCounterRef >>= \n -> putStrLn (show n ++ " draw calls")
 
 data CGState
   = CGState
