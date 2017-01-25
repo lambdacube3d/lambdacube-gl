@@ -18,7 +18,7 @@ main :: IO ()
 main = do
     -- compile hello.lc to graphics pipeline description
     pipelineDesc <- LambdaCube.compileMain ["."] OpenGL33 "hello.lc" >>= \case
-      Left err  -> fail $ "compile error:\n" ++ err
+      Left err  -> fail $ "compile error:\n" ++ ppShow err
       Right pd  -> return pd
 
     win <- initWindow "LambdaCube 3D DSL Hello World" 640 640
