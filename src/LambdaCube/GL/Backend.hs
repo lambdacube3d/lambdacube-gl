@@ -852,7 +852,7 @@ emit cmd = modify $ \s -> s {drawCommands = cmd : drawCommands s}
 
 drawContext programs = do
   GLProgram{..} <- (programs !) <$> gets currentProgram
-  let f = take (Set.size inputTextureUniforms) . IntMap.toList
+  let f = take (Map.size inputTextures) . IntMap.toList
   GLDrawContext <$> gets rasterContext
                 <*> gets accumulationContext
                 <*> gets renderTarget
