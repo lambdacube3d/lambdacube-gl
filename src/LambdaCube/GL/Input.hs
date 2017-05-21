@@ -253,8 +253,8 @@ createObjectCommands texUnitMap topUnis obj prg = objUniCmds ++ objStreamCmds ++
             constAttr -> GLSetVertexAttrib i constAttr
 
 nullSetter :: GLUniformName -> String -> a -> IO ()
---nullSetter n t _ = return () -- Prelude.putStrLn $ "WARNING: unknown uniform: " ++ SB.unpack n ++ " :: " ++ t
-nullSetter n t _ = Prelude.putStrLn $ "WARNING: unknown uniform: " ++ show n ++ " :: " ++ t
+nullSetter n t _ = return ()
+--nullSetter n t _ = Prelude.putStrLn $ "WARNING: unknown uniform: " ++ show n ++ " :: " ++ t
 
 uniformBool  :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun Bool
 uniformV2B   :: GLUniformName -> Map GLUniformName InputSetter -> SetterFun V2B
