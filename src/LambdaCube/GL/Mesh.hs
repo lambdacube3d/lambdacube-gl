@@ -7,7 +7,7 @@ module LambdaCube.GL.Mesh (
     Mesh(..),
     MeshPrimitive(..),
     MeshAttribute(..),
-    GPUMesh,
+    GPUMesh(..), GPUData(..),
     meshData
 ) where
 
