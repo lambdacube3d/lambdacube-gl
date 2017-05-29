@@ -8,7 +8,6 @@ module LambdaCube.GL.Mesh (
     MeshPrimitive(..),
     MeshAttribute(..),
     GPUMesh(..), GPUData(..),
-    meshData
 ) where
 
 import Data.Maybe

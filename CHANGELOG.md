@@ -1,3 +1,11 @@
+# 0.5.2.5
+
+- Fix space leak, as per #11
+
+# 0.5.2.4
+
+- disable warnings for unused uniforms updates
+
 # 0.5.2.3
 
 - fix: [Render to texture is broken](https://github.com/lambdacube3d/lambdacube-gl/issues/5)

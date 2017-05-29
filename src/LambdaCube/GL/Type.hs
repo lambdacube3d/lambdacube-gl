@@ -3,7 +3,7 @@ module LambdaCube.GL.Type where
 
 import Data.IORef
 import Data.Int
-import Data.IntMap (IntMap)
+import Data.IntMap.Strict (IntMap)
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.Vector (Vector)
@@ -79,9 +79,9 @@ data OrderJob
 
 data GLSlot
     = GLSlot
-    { objectMap     :: IntMap Object
-    , sortedObjects :: Vector (Int,Object)
-    , orderJob      :: OrderJob
+    { objectMap     :: !(IntMap Object)
+    , sortedObjects :: !(Vector (Int,Object))
+    , orderJob      :: !OrderJob
     }
 
 data GLStorage
