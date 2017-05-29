@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, TypeSynonymInstances, FlexibleInstances #-}
 module LambdaCube.GL.Input where
 
 import Control.Applicative
@@ -117,7 +117,7 @@ addObject input slotName prim indices attribs uniformNames = do
             , objCommands   = cmdsRef
             }
 
-    modifyIORef (slotVector input ! slotIdx) $ \(GLSlot objs _ _) -> GLSlot (IM.insert index obj objs) V.empty Generate
+    modifyIORef' (slotVector input ! slotIdx) $ \(GLSlot objs _ _) -> GLSlot (IM.insert index obj objs) V.empty Generate
 
     -- generate GLObjectCommands for the new object
     {-
@@ -144,7 +144,7 @@ addObject input slotName prim indices attribs uniformNames = do
     return obj
 
 removeObject :: GLStorage -> Object -> IO ()
-removeObject p obj = modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot objs _ _) -> GLSlot (IM.delete (objId obj) objs) V.empty Generate
+removeObject p obj = modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot !objs _ _) -> GLSlot (IM.delete (objId obj) objs) V.empty Generate
 
 enableObject :: Object -> Bool -> IO ()
 enableObject obj b = writeIORef (objEnabled obj) b
