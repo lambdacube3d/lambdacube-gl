@@ -1,7 +1,13 @@
-resolver: lts-4.1
+resolver: lts-9.0
 packages:
-- '../lambdacube-ir/lambdacube-ir.haskell'
 - '.'
-extra-deps: []
+- location:
+    git: git@github.com:lambdacube3d/lambdacube-ir.git
+    commit: a0bf64b83dd218d1ea29823749dcfa8a6ee959a9
+  subdirs:
+    - lambdacube-ir.haskell
+extra-deps:
+- wavefront-0.7.1
+
 flags: {}
 extra-package-dbs: []
