@@ -1,5 +1,7 @@
 *~
 dist
+dist-newstyle
 *.hi
 *.o
 .stack-work
+.ghc.environment.*
