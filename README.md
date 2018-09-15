@@ -1,4 +1,5 @@
 # lambdacube-gl
+[![Gitter chat](https://badges.gitter.im/lambdacube3d/lambdacube3d.png)](https://gitter.im/LambdaCube-3D/Lobby)
 
 Haskell OpenGL backend for LambdaCube 3D.
 
