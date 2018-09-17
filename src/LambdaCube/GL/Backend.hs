@@ -283,6 +283,15 @@ compileProgram p = do
         , inputStreams          = Map.fromList [(n,(idx, attrName)) | (n,idx) <- Map.toList $ attributes, let attrName = fromMaybe (error $ "missing attribute: " ++ n) $ Map.lookup n lcStreamName]
         }
 
+renderTargetOutputs :: Vector GLTexture -> RenderTarget -> GLRenderTarget -> [GLOutput]
+renderTargetOutputs glTexs (RenderTarget targetItems) (GLRenderTarget fbo bufs) =
+    let isFB (Framebuffer _)    = True
+        isFB _                  = False
+        images = [img | TargetItem _ (Just img) <- V.toList targetItems]
+    in case all isFB images of
+         True  -> fromMaybe [] $ (GLOutputDrawBuffer fbo <$>) <$> bufs
+         False -> (\(TextureImage texIdx _ _)-> GLOutputRenderTexture fbo $ glTexs ! texIdx) <$> images
+
 compileRenderTarget :: Vector TextureDescriptor -> Vector GLTexture -> RenderTarget -> IO GLRenderTarget
 compileRenderTarget texs glTexs (RenderTarget targets) = do
     let isFB (Framebuffer _)    = True
@@ -488,16 +497,25 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds ++ s
             -- constant generic attribute
             constAttr -> GLSetVertexAttrib i constAttr
 
+outputIsRenderTexture :: GLOutput -> Bool
+outputIsRenderTexture GLOutputRenderTexture{..} = True
+outputIsRenderTexture _                         = False
+
 allocRenderer :: Pipeline -> IO GLRenderer
 allocRenderer p = do
     smps <- V.mapM compileSampler $ samplers p
     texs <- V.mapM compileTexture $ textures p
-    trgs <- V.mapM (compileRenderTarget (textures p) texs) $ targets p
+    let cmds                 = V.toList $ commands p
+        finalRenderTargetIdx = head [i | SetRenderTarget i <- reverse $ cmds]
+    trgs <- traverse (compileRenderTarget (textures p) texs) $ targets p
+    let finalRenderTarget   = targets p ! finalRenderTargetIdx
+        finalGLRenderTarget = trgs      ! finalRenderTargetIdx
+        outs                = renderTargetOutputs texs finalRenderTarget finalGLRenderTarget
     prgs <- V.mapM compileProgram $ programs p
     -- texture unit mapping ioref trie
     -- texUnitMapRefs :: Map UniformName (IORef TextureUnit)
     texUnitMapRefs <- Map.fromList <$> mapM (\k -> (k,) <$> newIORef 0) (Set.toList $ Set.fromList $ concat $ V.toList $ V.map (Map.keys . programInTextures) $ programs p)
-    let st = execState (mapM_ (compileCommand texUnitMapRefs smps texs trgs prgs) (V.toList $ commands p)) initCGState
+    let st = execState (mapM_ (compileCommand texUnitMapRefs smps texs trgs prgs) cmds) initCGState
     input <- newIORef Nothing
     -- default Vertex Array Object
     vao <- alloca $! \pvao -> glGenVertexArrays 1 pvao >> peek pvao
@@ -515,6 +533,7 @@ allocRenderer p = do
         , glCommands        = reverse $ drawCommands st
         , glSlotPrograms    = V.map (V.toList . slotPrograms) $ IR.slots p
         , glInput           = input
+        , glOutputs         = outs
         , glSlotNames       = V.map slotName $ IR.slots p
         , glVAO             = vao
         , glTexUnitMapping  = texUnitMapRefs
