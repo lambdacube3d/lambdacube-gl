@@ -126,7 +126,7 @@ setupAccumulationContext (AccumulationContext n ops) = cvt ops
                 glDepthFunc $! comparisonFunctionToGLType df
                 glDepthMask (cvtBool dm)
         cvtC 0 xs
-    cvt xs = do 
+    cvt xs = do
         glDisable GL_DEPTH_TEST
         glDisable GL_STENCIL_TEST
         cvtC 0 xs
@@ -169,8 +169,8 @@ setupAccumulationContext (AccumulationContext n ops) = cvt ops
     cvtBool True  = 1
     cvtBool False = 0
 
-clearRenderTarget :: [ClearImage] -> IO ()
-clearRenderTarget values = do
+clearRenderTarget :: GLRenderTarget -> [ClearImage] -> IO ()
+clearRenderTarget GLRenderTarget{..} values = do
     let setClearValue (m,i) value = case value of
             ClearImage Depth (VFloat v) -> do
                 glDepthMask 1
@@ -180,19 +180,45 @@ clearRenderTarget values = do
                 glClearStencil $ fromIntegral v
                 return (m .|. GL_STENCIL_BUFFER_BIT, i)
             ClearImage Color c -> do
-                let (r,g,b,a) = case c of
-                        VFloat r            -> (realToFrac r, 0, 0, 1)
-                        VV2F (V2 r g)       -> (realToFrac r, realToFrac g, 0, 1)
-                        VV3F (V3 r g b)     -> (realToFrac r, realToFrac g, realToFrac b, 1)
-                        VV4F (V4 r g b a)   -> (realToFrac r, realToFrac g, realToFrac b, realToFrac a)
-                        _                   -> (0,0,0,1)
                 glColorMask 1 1 1 1
-                glClearColor r g b a
-                return (m .|. GL_COLOR_BUFFER_BIT, i+1)
+                if framebufferObject == 0
+                then
+                  clearDefaultFB >>
+                  pure (m .|. GL_COLOR_BUFFER_BIT, i+1)
+                else
+                  clearFBColorAttachment >>
+                  pure (m, i+1)
+                where
+                  clearDefaultFB = do
+                    let (r,g,b,a) = case c of
+                          VFloat r            -> (realToFrac r, 0, 0, 1)
+                          VV2F (V2 r g)       -> (realToFrac r, realToFrac g, 0, 1)
+                          VV3F (V3 r g b)     -> (realToFrac r, realToFrac g, realToFrac b, 1)
+                          VV4F (V4 r g b a)   -> (realToFrac r, realToFrac g, realToFrac b, realToFrac a)
+                          _                   -> (0,0,0,1)
+                    glClearColor r g b a
+                  clearFBColorAttachment = do
+                    let buf = GL_COLOR
+                    case c of -- there must be some clever way to extract the generality here, I'm sure..
+                      VFloat r            -> with (V4 r 0 0 1) $ glClearBufferfv buf i . castPtr
+                      VV2F (V2 r g)       -> with (V4 r g 0 1) $ glClearBufferfv buf i . castPtr
+                      VV3F (V3 r g b)     -> with (V4 r g b 1) $ glClearBufferfv buf i . castPtr
+                      VV4F (V4 r g b a)   -> with (V4 r g b a) $ glClearBufferfv buf i . castPtr
+                  
+                      VInt r              -> with (V4 r 0 0 1) $ glClearBufferiv buf i . castPtr
+                      VV2I (V2 r g)       -> with (V4 r g 0 1) $ glClearBufferiv buf i . castPtr
+                      VV3I (V3 r g b)     -> with (V4 r g b 1) $ glClearBufferiv buf i . castPtr
+                      VV4I (V4 r g b a)   -> with (V4 r g b a) $ glClearBufferiv buf i . castPtr
+                  
+                      VWord r             -> with (V4 r 0 0 1) $ glClearBufferiv buf i . castPtr
+                      VV2U (V2 r g)       -> with (V4 r g 0 1) $ glClearBufferiv buf i . castPtr
+                      VV3U (V3 r g b)     -> with (V4 r g b 1) $ glClearBufferiv buf i . castPtr
+                      VV4U (V4 r g b a)   -> with (V4 r g b a) $ glClearBufferiv buf i . castPtr
+                      _ -> error $ "internal error: unsupported color attachment format: " <> show c
+
             _ -> error "internal error (clearRenderTarget)"
     (mask,_) <- foldM setClearValue (0,0) values
     glClear $ fromIntegral mask
-
 
 printGLStatus = checkGL >>= print
 printFBOStatus = checkFBO >>= print
@@ -353,7 +379,7 @@ compileRenderTarget texs glTexs (RenderTarget targets) = do
                             | n > 1             -> attachArray
                             | otherwise         -> attach2D
                         TextureBuffer _         -> fail "internalError (compileRenderTarget/TextureBuffer)!"
-            
+
                 go a (TargetItem Stencil (Just img)) = do
                     fail "Stencil support is not implemented yet!"
                     return a
@@ -462,7 +488,7 @@ createStreamCommands texUnitMap topUnis attrs primitive prg = streamUniCmds ++ s
 
     -- object attribute stream commands
     streamCmds = [attrCmd i s | (i,name) <- Map.elems attrMap, let s = fromMaybe (error $ "missing attribute: " ++ name) $ Map.lookup name attrs]
-      where 
+      where
         attrMap = inputStreams prg
         attrCmd i s = case s of
             Stream ty (Buffer arrs bo) arrIdx start len -> case ty of
@@ -592,7 +618,7 @@ isSubTrie eqFun universe subset = and [isMember a (Map.lookup n universe) | (n,a
             when (sPrim /= (primitiveToFetchPrimitive prim)) $ throw $ userError $
                 "Primitive mismatch for slot (" ++ show slotName ++ ") expected " ++ show sPrim  ++ " but got " ++ show prim
             let sType = fmap streamToStreamType attribs
-            when (sType /= sAttrs) $ throw $ userError $ unlines $ 
+            when (sType /= sAttrs) $ throw $ userError $ unlines $
                 [ "Attribute stream mismatch for slot (" ++ show slotName ++ ") expected "
                 , show sAttrs
                 , " but got "
@@ -809,7 +835,7 @@ renderFrame GLRenderer{..} = do
         case cmd of
             GLClearRenderTarget rt vals -> do
               setupRenderTarget glInput rt
-              clearRenderTarget vals
+              clearRenderTarget rt vals
               modifyIORef glDrawContextRef $ \ctx -> ctx {glRenderTarget = rt}
 
             GLRenderStream ctx streamIdx progIdx -> do
