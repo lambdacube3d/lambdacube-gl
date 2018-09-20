@@ -152,20 +152,24 @@ pickFrameBuffer
 pickFrameBuffer fb (w, h) (x, y) = do
   glFinish
   glBindFramebuffer GL_READ_FRAMEBUFFER $ fromIntegral fb
-  glReadBuffer GL_BACK_LEFT
-  withFrameBuffer x (h - y - 1) 1 1 $ \p -> fromIntegral <$> F.peek (F.castPtr p :: F.Ptr F.Word32)
+  let (fbmode, format) =
+        if fb == 0
+        then (GL_BACK_LEFT,         GL_RGBA)
+        else (GL_COLOR_ATTACHMENT0, GL_RGBA_INTEGER)
+  glReadBuffer fbmode
+  withFrameBuffer w format x (h - y - 1) 1 1 $ \p -> fromIntegral <$> F.peek (F.castPtr p :: F.Ptr F.Word32)
 
-withFrameBuffer :: Int -> Int -> Int -> Int -> (F.Ptr F.Word8 -> IO a) -> IO a
-withFrameBuffer x y w h fn = F.allocaBytes (w*h*4) $ \p -> do
+withFrameBuffer :: Int -> GLenum -> Int -> Int -> Int -> Int -> (F.Ptr F.Word8 -> IO a) -> IO a
+withFrameBuffer rowLen format x y w h fn = F.allocaBytes (w*h*4) $ \p -> do
   glPixelStorei GL_UNPACK_LSB_FIRST    0
   glPixelStorei GL_UNPACK_SWAP_BYTES   0
-  glPixelStorei GL_UNPACK_ROW_LENGTH   $ fromIntegral w
+  glPixelStorei GL_UNPACK_ROW_LENGTH   $ fromIntegral rowLen
   glPixelStorei GL_UNPACK_IMAGE_HEIGHT 0
   glPixelStorei GL_UNPACK_SKIP_ROWS    0
   glPixelStorei GL_UNPACK_SKIP_PIXELS  0
   glPixelStorei GL_UNPACK_SKIP_IMAGES  0
   glPixelStorei GL_UNPACK_ALIGNMENT    1
-  glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) GL_RGBA GL_UNSIGNED_BYTE $ F.castPtr p
+  glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) format GL_UNSIGNED_BYTE $ F.castPtr p
   glPixelStorei GL_UNPACK_ROW_LENGTH   0
   fn p
 
