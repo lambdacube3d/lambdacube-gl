@@ -85,10 +85,10 @@ executable lambdacube-gl-hello
     lambdacube-ir == 0.3.*
 
 executable lambdacube-gl-pickint
-  -- if flag(example)
-  --   Buildable: True
-  -- else
-  --   Buildable: False
+  if flag(example)
+    Buildable: True
+  else
+    Buildable: False
 
   hs-source-dirs:   examples
   main-is:          pickInt.hs
