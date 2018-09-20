@@ -20,9 +20,9 @@ import qualified LambdaCube.Linear                 as LCLin
 --  See:  http://lambdacube3d.com/getting-started
 ----------------------------------------------------
 
-screenDim :: (,) Int Int
-screenDim = (,) 800 600
-(,) screenW screenH = screenDim
+screenDim :: (Int, Int)
+screenDim = (800, 600)
+(screenW, screenH) = screenDim
 
 main :: IO ()
 main = do
@@ -59,16 +59,16 @@ main = do
                 -- update graphics input
                 GLFW.getWindowSize win >>= \(w,h) -> LambdaCubeGL.setScreenSize storage (fromIntegral w) (fromIntegral h)
                 LambdaCubeGL.updateUniforms storage $ do
-                  let (,) x y   = (,) 0 0
+                  let (x, y)    = (,) 0 0
                       cvpos     = Vec3 x (-y) 0
                       toScreen  = screenM screenW screenH
                   "viewProj" @= pure (mat4ToM44F $! (Vc.fromProjective $! Vc.translation cvpos) Vc..*. toScreen)
 
-                let pickPoints =
-                      [ (0,   0)   -- should be black 
-                      , (200, 200) --         ..blue, ffff0000
-                      , (600, 400) --         ..red,  ff0000ff
-                      ] :: [(,) Int Int]
+                let pickPoints =   -- should be fb 0            fb 1 (pick)
+                      [ (0,   0)   --           black              0
+                      , (200, 200) --         ..blue, ffff0000     2
+                      , (600, 400) --         ..red,  ff0000ff     1
+                      ] :: [(Int, Int)]
 
                 -- render to render texture
                 LambdaCubeGL.renderFrame pipePick
@@ -89,7 +89,7 @@ main = do
                 let keyIsPressed k = fmap (==KeyState'Pressed) $ GLFW.getKey win k
                 escape <- keyIsPressed Key'Escape
                 if escape then return () else loop
-              collectPicks :: Int -> [(,) Int Int] -> IO [Int]
+              collectPicks :: Int -> [(Int, Int)] -> IO [Int]
               collectPicks fb picks =
                 forM picks $ (fromIntegral <$>) . pickFrameBuffer fb screenDim
               printPicks pickPoints colorPicks = do
@@ -146,8 +146,8 @@ screenM w h = scaleM
 
 pickFrameBuffer
   :: Int         -- ^ framebuffer
-  -> (,) Int Int -- ^ FB dimensions
-  -> (,) Int Int -- ^ pick coordinates
+  -> (Int, Int)  -- ^ FB dimensions
+  -> (Int, Int)  -- ^ pick coordinates
   -> IO F.Word32 -- ^ resultant pixel value
 pickFrameBuffer fb (w, h) (x, y) = do
   glFinish
