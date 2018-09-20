@@ -427,14 +427,14 @@ textureDataTypeToGLType Stencil a = case a of
 textureDataTypeToGLArityType :: ImageSemantic -> TextureDataType -> GLenum
 textureDataTypeToGLArityType Color a = case a of
     FloatT Red  -> GL_RED
-    IntT   Red  -> GL_RED
-    WordT  Red  -> GL_RED
+    IntT   Red  -> GL_RED_INTEGER
+    WordT  Red  -> GL_RED_INTEGER
     FloatT RG   -> GL_RG
-    IntT   RG   -> GL_RG
-    WordT  RG   -> GL_RG
+    IntT   RG   -> GL_RG_INTEGER
+    WordT  RG   -> GL_RG_INTEGER
     FloatT RGBA -> GL_RGBA
-    IntT   RGBA -> GL_RGBA
-    WordT  RGBA -> GL_RGBA
+    IntT   RGBA -> GL_RGBA_INTEGER
+    WordT  RGBA -> GL_RGBA_INTEGER
     a           -> error $ "FIXME: This texture format is not yet supported" ++ show a
 textureDataTypeToGLArityType Depth a = case a of
     FloatT Red  -> GL_DEPTH_COMPONENT
