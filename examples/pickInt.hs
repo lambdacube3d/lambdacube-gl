@@ -64,11 +64,14 @@ main = do
                       toScreen  = screenM screenW screenH
                   "viewProj" @= pure (mat4ToM44F $! (Vc.fromProjective $! Vc.translation cvpos) Vc..*. toScreen)
 
+                (curX, curY) <- GLFW.getCursorPos win
                 let pickPoints =   -- should be fb 0            fb 1 (pick)
-                      [ (0,   0)   --           black              0
+                      [ (clamp curX 800, clamp curY 600)
+                      , (0,   0)   --           black              0
                       , (200, 200) --         ..blue, ffff0000     2
                       , (600, 400) --         ..red,  ff0000ff     1
                       ] :: [(Int, Int)]
+                    clamp v m = min (pred m) $ max 0 (floor v)
 
                 -- render to render texture
                 LambdaCubeGL.renderFrame pipePick
@@ -186,3 +189,4 @@ initWindow title width height = do
     Just win <- GLFW.createWindow width height title Nothing Nothing
     GLFW.makeContextCurrent $ Just win
     return win
+
