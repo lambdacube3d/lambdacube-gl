@@ -152,6 +152,7 @@ data GLRenderer
     , glTextures        :: Vector GLTexture
     , glSamplers        :: Vector GLSampler
     , glTargets         :: Vector GLRenderTarget
+    , glOutputs         :: [GLOutput]
     , glCommands        :: [GLCommand]
     , glSlotPrograms    :: Vector [ProgramName] -- programs depend on a slot
     , glInput           :: IORef (Maybe InputConnection)
@@ -176,6 +177,16 @@ data GLRenderTarget
     { framebufferObject         :: GLuint
     , framebufferDrawbuffers    :: Maybe [GLenum]
     } deriving Eq
+
+data GLOutput
+    = GLOutputDrawBuffer
+      { glOutputFBO           :: GLuint
+      , glOutputDrawBuffer    :: GLenum
+      }
+    | GLOutputRenderTexture
+      { glOutputFBO           :: GLuint
+      , glOutputRenderTexture :: GLTexture
+      }
 
 type GLTextureUnit = Int
 type GLUniformBinding = GLint

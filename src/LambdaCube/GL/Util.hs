@@ -403,6 +403,8 @@ blendingFactorToGLType a = case a of
     SrcColor                -> GL_SRC_COLOR
     Zero                    -> GL_ZERO
 
+-- XXX: we need to extend IR.TextureDescriptor to carry component bit depth
+--      if we want to avoid making arbitrary decisions here
 textureDataTypeToGLType :: ImageSemantic -> TextureDataType -> GLenum
 textureDataTypeToGLType Color a = case a of
     FloatT Red  -> GL_R32F
@@ -412,8 +414,8 @@ textureDataTypeToGLType Color a = case a of
     IntT   RG   -> GL_RG32I
     WordT  RG   -> GL_RG32UI
     FloatT RGBA -> GL_RGBA32F
-    IntT   RGBA -> GL_RGBA32I
-    WordT  RGBA -> GL_RGBA32UI
+    IntT   RGBA -> GL_RGBA8I
+    WordT  RGBA -> GL_RGBA8UI
     a           -> error $ "FIXME: This texture format is not yet supported" ++ show a
 textureDataTypeToGLType Depth a = case a of
     FloatT Red  -> GL_DEPTH_COMPONENT32F
@@ -425,14 +427,14 @@ textureDataTypeToGLType Stencil a = case a of
 textureDataTypeToGLArityType :: ImageSemantic -> TextureDataType -> GLenum
 textureDataTypeToGLArityType Color a = case a of
     FloatT Red  -> GL_RED
-    IntT   Red  -> GL_RED
-    WordT  Red  -> GL_RED
+    IntT   Red  -> GL_RED_INTEGER
+    WordT  Red  -> GL_RED_INTEGER
     FloatT RG   -> GL_RG
-    IntT   RG   -> GL_RG
-    WordT  RG   -> GL_RG
+    IntT   RG   -> GL_RG_INTEGER
+    WordT  RG   -> GL_RG_INTEGER
     FloatT RGBA -> GL_RGBA
-    IntT   RGBA -> GL_RGBA
-    WordT  RGBA -> GL_RGBA
+    IntT   RGBA -> GL_RGBA_INTEGER
+    WordT  RGBA -> GL_RGBA_INTEGER
     a           -> error $ "FIXME: This texture format is not yet supported" ++ show a
 textureDataTypeToGLArityType Depth a = case a of
     FloatT Red  -> GL_DEPTH_COMPONENT

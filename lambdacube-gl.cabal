@@ -79,10 +79,33 @@ executable lambdacube-gl-hello
     bytestring >=0.10 && <0.11,
     vector >=0.12 && <0.13,
     JuicyPixels >=3.2 && <3.3,
-    aeson >= 1.1.2 && <1.3,
-    GLFW-b >= 1.4 && <1.5,
+    aeson >= 1.1.2,
+    GLFW-b >= 1.4,
     lambdacube-gl,
     lambdacube-ir == 0.3.*
+
+executable lambdacube-gl-pickint
+  if flag(example)
+    Buildable: True
+  else
+    Buildable: False
+
+  hs-source-dirs:   examples
+  main-is:          pickInt.hs
+  default-language: Haskell2010
+
+  build-depends:
+    GLFW-b >= 1.4,
+    JuicyPixels >=3.2,
+    OpenGLRaw,
+    aeson >= 1.1.2,
+    base,
+    bytestring >=0.10,
+    containers >=0.5,
+    lambdacube-gl,
+    lambdacube-ir,
+    vect,
+    vector >=0.12
 
 executable lambdacube-gl-hello-obj
   if flag(example)
@@ -103,8 +126,8 @@ executable lambdacube-gl-hello-obj
     bytestring >=0.10 && <0.11,
     vector >=0.12 && <0.13,
     JuicyPixels >=3.2 && <3.3,
-    aeson >= 1.1.2 && <1.3,
-    GLFW-b >= 1.4 && <1.5,
+    aeson >= 1.1.2,
+    GLFW-b >= 1.4,
     wavefront >= 0.7 && <1,
     lambdacube-gl,
     lambdacube-ir == 0.3.*
@@ -132,10 +155,10 @@ executable lambdacube-gl-test-client
     base64-bytestring >=1 && <1.1,
     vector >=0.12 && <0.13,
     JuicyPixels >=3.2 && <3.3,
-    aeson >= 1.1 && <1.3,
+    aeson >= 1.1.2,
     websockets >= 0.10 && <1,
     network >= 2.6 && <2.7,
     OpenGLRaw >=3.2 && <4,
-    GLFW-b >= 1.4 && <1.5,
+    GLFW-b >= 1.4,
     lambdacube-gl,
     lambdacube-ir == 0.3.*
