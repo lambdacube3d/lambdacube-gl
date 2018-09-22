@@ -204,17 +204,17 @@ clearRenderTarget GLRenderTarget{..} values = do
                       VV2F (V2 r g)       -> with (V4 r g 0 1) $ glClearBufferfv buf i . castPtr
                       VV3F (V3 r g b)     -> with (V4 r g b 1) $ glClearBufferfv buf i . castPtr
                       VV4F (V4 r g b a)   -> with (V4 r g b a) $ glClearBufferfv buf i . castPtr
-                  
+
                       VInt r              -> with (V4 r 0 0 1) $ glClearBufferiv buf i . castPtr
                       VV2I (V2 r g)       -> with (V4 r g 0 1) $ glClearBufferiv buf i . castPtr
                       VV3I (V3 r g b)     -> with (V4 r g b 1) $ glClearBufferiv buf i . castPtr
                       VV4I (V4 r g b a)   -> with (V4 r g b a) $ glClearBufferiv buf i . castPtr
-                  
+
                       VWord r             -> with (V4 r 0 0 1) $ glClearBufferiv buf i . castPtr
                       VV2U (V2 r g)       -> with (V4 r g 0 1) $ glClearBufferiv buf i . castPtr
                       VV3U (V3 r g b)     -> with (V4 r g b 1) $ glClearBufferiv buf i . castPtr
                       VV4U (V4 r g b a)   -> with (V4 r g b a) $ glClearBufferiv buf i . castPtr
-                      _ -> error $ "internal error: unsupported color attachment format: " <> show c
+                      _ -> error $ "internal error: unsupported color attachment format: " ++ show c
 
             _ -> error "internal error (clearRenderTarget)"
     (mask,_) <- foldM setClearValue (0,0) values

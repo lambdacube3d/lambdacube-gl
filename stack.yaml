@@ -9,6 +9,7 @@ packages:
   extra-dep: true
 extra-deps:
 - wavefront-0.7.1.1
+- vect-0.4.7
 
 flags:
   lambdacube-gl:

@@ -79,7 +79,7 @@ main = do
                   [LC.GLOutputRenderTexture (fromIntegral -> fbo) _rendTex] -> do
                     rtexPicks <- collectPicks fbo pickPoints
                     printPicks pickPoints rtexPicks
-                  x -> error $ "Unexpected outputs: " <> show x
+                  x -> error $ "Unexpected outputs: " ++ show x
 
                 -- render to framebuffer & pick
                 LambdaCubeGL.renderFrame pipeDraw
