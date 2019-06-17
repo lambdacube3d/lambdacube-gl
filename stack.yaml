@@ -1,18 +1,15 @@
 resolver: lts-10.4
 packages:
 - '.'
-- location:
-    git: https://github.com/lambdacube3d/lambdacube-ir.git
-    commit: b8b4ec9fa985b2eb756ac1a5a65af483a0bd586b
-  subdirs:
-    - lambdacube-ir.haskell
-  extra-dep: true
+
 extra-deps:
 - wavefront-0.7.1.1
 - vect-0.4.7
+- github: lambdacube3d/lambdacube-ir
+  commit: 8a0a17abedc9d6b46b41d744c1a2be53efa6336b
+  subdirs:
+    - lambdacube-ir.haskell
 
 flags:
   lambdacube-gl:
     example: true
-
-extra-package-dbs: []
