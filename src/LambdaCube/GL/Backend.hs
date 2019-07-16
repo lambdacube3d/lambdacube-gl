@@ -20,7 +20,7 @@ import qualified Data.Set as Set
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 
-import Graphics.GL.Core33
+import Graphics.GL.Core46
 import Foreign
 import Foreign.C.String
 

@@ -12,7 +12,7 @@ import Foreign.Ptr
 import Foreign.Storable
 import Data.ByteString
 
-import Graphics.GL.Core33
+import Graphics.GL.Core46
 
 import LambdaCube.Linear
 import LambdaCube.IR

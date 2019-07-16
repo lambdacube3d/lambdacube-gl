@@ -14,7 +14,7 @@ import qualified Data.Vector.Storable as SV
 
 --import Control.DeepSeq
 
-import Graphics.GL.Core33
+import Graphics.GL.Core46
 import Data.Word
 import Codec.Picture
 import Codec.Picture.Types

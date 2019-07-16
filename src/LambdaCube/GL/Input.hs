@@ -21,7 +21,7 @@ import qualified Data.Vector.Algorithms.Intro as I
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as SB
 
-import Graphics.GL.Core33
+import Graphics.GL.Core46
 
 import LambdaCube.IR as IR
 import LambdaCube.Linear as IR
