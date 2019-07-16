@@ -1,7 +1,7 @@
 # lambdacube-gl
 [![Gitter chat](https://badges.gitter.im/lambdacube3d/lambdacube3d.png)](https://gitter.im/LambdaCube-3D/Lobby)
 
-Haskell OpenGL backend for LambdaCube 3D.
+This is a fork of the Haskell OpenGL backend for LambdaCube 3D, that uses the OpenGL 4.6 API instead of OpenGL 3.3. This is by no means a huge fork of the code; there are basically no differences between the 3.3 and 4.6 APIs in the package that lambdacube-gl uses for OpenGl bindings (OpenGLRaw). Nonetheless, you should expect some differences in how your use behaves in comparison to regular LambdaCube 3D code.
 
 ## Building instructions
 
