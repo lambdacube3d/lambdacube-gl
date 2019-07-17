@@ -44,7 +44,7 @@ import qualified Data.Vector.Unboxed.Mutable as MV
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import Graphics.GL.Core46
+import Graphics.GL.Core43
 import LambdaCube.Linear
 import LambdaCube.IR
 import LambdaCube.PipelineSchema
