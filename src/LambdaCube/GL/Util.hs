@@ -619,7 +619,7 @@ compileTexture txDescriptor = do
         mipSize n x = x : mipSize (n-1) (x `div` 2)
         mipS = mipSize (txMaxLevel - txBaseLevel)
         levels = [txBaseLevel..txMaxLevel]
-    target <- case txType of
+    (target, sizeV3) <- case txType of
         Texture1D dTy layerCnt -> do
             let VWord txW = txSize
                 txTarget = if layerCnt > 1 then GL_TEXTURE_1D_ARRAY else GL_TEXTURE_1D
@@ -627,7 +627,7 @@ compileTexture txDescriptor = do
             forM_ (zip levels (mipS txW)) $ \(l,w) -> case layerCnt > 1 of
                 True    -> glTexImage2D txTarget (fromIntegral l) internalFormat (fromIntegral w) (fromIntegral layerCnt) 0 dataFormat GL_UNSIGNED_BYTE nullPtr
                 False   -> glTexImage1D txTarget (fromIntegral l) internalFormat (fromIntegral w) 0 dataFormat GL_UNSIGNED_BYTE nullPtr
-            return txTarget
+            return (txTarget, V3 txW 0 0)
         Texture2D dTy layerCnt -> do
             let VV2U (V2 txW txH) = txSize
                 txTarget = if layerCnt > 1 then GL_TEXTURE_2D_ARRAY else GL_TEXTURE_2D
@@ -635,14 +635,14 @@ compileTexture txDescriptor = do
             forM_ (zip3 levels (mipS txW) (mipS txH)) $ \(l,w,h) -> case layerCnt > 1 of
                 True    -> glTexImage3D txTarget (fromIntegral l) internalFormat (fromIntegral w) (fromIntegral h) (fromIntegral layerCnt) 0 dataFormat GL_UNSIGNED_BYTE nullPtr
                 False   -> glTexImage2D txTarget (fromIntegral l) internalFormat (fromIntegral w) (fromIntegral h) 0 dataFormat GL_UNSIGNED_BYTE nullPtr
-            return txTarget
+            return (txTarget, V3 txW txH 0)
         Texture3D dTy -> do
             let VV3U (V3 txW txH txD) = txSize
                 txTarget = GL_TEXTURE_3D
             (internalFormat,dataFormat) <- txSetup txTarget dTy
             forM_ (zip4 levels (mipS txW) (mipS txH) (mipS txD)) $ \(l,w,h,d) ->
                 glTexImage3D txTarget (fromIntegral l) internalFormat (fromIntegral w) (fromIntegral h) (fromIntegral d) 0 dataFormat GL_UNSIGNED_BYTE nullPtr
-            return txTarget
+            return (txTarget, V3 txW txH txD)
         TextureCube dTy -> do
             let VV2U (V2 txW txH) = txSize
                 txTarget = GL_TEXTURE_CUBE_MAP
@@ -657,14 +657,14 @@ compileTexture txDescriptor = do
             (internalFormat,dataFormat) <- txSetup txTarget dTy
             forM_ (zip3 levels (mipS txW) (mipS txH)) $ \(l,w,h) -> 
                 forM_ targets $ \t -> glTexImage2D t (fromIntegral l) internalFormat (fromIntegral w) (fromIntegral h) 0 dataFormat GL_UNSIGNED_BYTE nullPtr
-            return txTarget
+            return (txTarget, V3 txW txH 0)
         TextureRect dTy -> do
             let VV2U (V2 txW txH) = txSize
                 txTarget = GL_TEXTURE_RECTANGLE
             (internalFormat,dataFormat) <- txSetup txTarget dTy
             forM_ (zip3 levels (mipS txW) (mipS txH)) $ \(l,w,h) -> 
                 glTexImage2D txTarget (fromIntegral l) internalFormat (fromIntegral w) (fromIntegral h) 0 dataFormat GL_UNSIGNED_BYTE nullPtr
-            return txTarget
+            return (txTarget, V3 txW txH 0)
         Texture2DMS dTy layerCnt sampleCount isFixedLocations -> do
             let VV2U (V2 w h)   = txSize
                 txTarget        = if layerCnt > 1 then GL_TEXTURE_2D_MULTISAMPLE_ARRAY else GL_TEXTURE_2D_MULTISAMPLE
@@ -673,7 +673,7 @@ compileTexture txDescriptor = do
             case layerCnt > 1 of
                 True    -> glTexImage3DMultisample txTarget (fromIntegral sampleCount) internalFormat (fromIntegral w) (fromIntegral h) (fromIntegral layerCnt) isFixed
                 False   -> glTexImage2DMultisample txTarget (fromIntegral sampleCount) internalFormat (fromIntegral w) (fromIntegral h) isFixed
-            return txTarget
+            return (txTarget, V3 w h 1)
         TextureBuffer dTy -> do
             fail "internal error: buffer texture is not supported yet"
             -- TODO
@@ -681,10 +681,11 @@ compileTexture txDescriptor = do
                 txTarget        = GL_TEXTURE_2D
             (internalFormat,dataFormat) <- txSetup txTarget dTy
             glTexImage2D GL_TEXTURE_2D 0 internalFormat (fromIntegral w) (fromIntegral h) 0 dataFormat GL_UNSIGNED_BYTE nullPtr
-            return txTarget
+            return (txTarget, V3 w h 0)
     return $ GLTexture
         { glTextureObject   = to
         , glTextureTarget   = target
+        , glTextureSize     = sizeV3
         }
 
 primitiveToFetchPrimitive :: Primitive -> FetchPrimitive

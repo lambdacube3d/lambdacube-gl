@@ -310,7 +310,7 @@ compileProgram p = do
         }
 
 renderTargetOutputs :: Vector GLTexture -> RenderTarget -> GLRenderTarget -> [GLOutput]
-renderTargetOutputs glTexs (RenderTarget targetItems) (GLRenderTarget fbo bufs) =
+renderTargetOutputs glTexs (RenderTarget targetItems) (GLRenderTarget fbo bufs _) =
     let isFB (Framebuffer _)    = True
         isFB _                  = False
         images = [img | TargetItem _ (Just img) <- V.toList targetItems]
@@ -333,6 +333,7 @@ compileRenderTarget texs glTexs (RenderTarget targets) = do
             return $ GLRenderTarget
                 { framebufferObject         = 0
                 , framebufferDrawbuffers    = Just bufs
+                , framebufferSize           = Nothing
                 }
         False -> do
             when (any isFB images) $ fail "internal error (compileRenderTarget)!"
@@ -394,9 +395,11 @@ compileRenderTarget texs glTexs (RenderTarget targets) = do
                 go a _ = return a
             (bufs,_) <- foldM go ([],0) targets
             withArray (reverse bufs) $ glDrawBuffers (fromIntegral $ length bufs)
+            let framebufferImageSizes = [glTextureSize (glTexs ! texIdx) | TargetItem _ (Just (TextureImage texIdx _ _)) <- V.toList targets]
             return $ GLRenderTarget
                 { framebufferObject         = fbo
                 , framebufferDrawbuffers    = Nothing
+                , framebufferSize           = if null framebufferImageSizes then Nothing else Just $ minimum framebufferImageSizes
                 }
 
 compileStreamData :: StreamData -> IO GLStream
@@ -779,18 +782,23 @@ renderSlot glDrawCallCounterRef glVertexBufferRef glIndexBufferRef cmds = forM_ 
 
 setupRenderTarget glInput GLRenderTarget{..} = do
   -- set target viewport
-  ic' <- readIORef glInput
-  case ic' of
-      Nothing -> return ()
-      Just ic -> do
-                  let input = icInput ic
-                  (w,h) <- readIORef $ screenSize input
-                  glViewport 0 0 (fromIntegral w) (fromIntegral h)
-  -- TODO: set FBO target viewport
+  let setMainScreenSize = do
+        ic' <- readIORef glInput
+        case ic' of
+            Nothing -> return ()
+            Just ic -> do
+                        let input = icInput ic
+                        (w,h) <- readIORef $ screenSize input
+                        glViewport 0 0 (fromIntegral w) (fromIntegral h)
+
   glBindFramebuffer GL_DRAW_FRAMEBUFFER framebufferObject
   case framebufferDrawbuffers of
-      Nothing -> return ()
-      Just bl -> withArray bl $ glDrawBuffers (fromIntegral $ length bl)
+      Nothing -> setMainScreenSize
+      Just bl -> do
+        case framebufferSize of
+          Nothing -> pure ()
+          Just (V3 w h _) -> glViewport 0 0 (fromIntegral w) (fromIntegral h)
+        withArray bl $ glDrawBuffers (fromIntegral $ length bl)
 
 setupDrawContext glForceSetup glDrawContextRef glInput new = do
   old <- readIORef glDrawContextRef

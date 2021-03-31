@@ -128,6 +128,7 @@ data GLTexture
     = GLTexture
     { glTextureObject   :: GLuint
     , glTextureTarget   :: GLenum
+    , glTextureSize     :: V3U
     } deriving Eq
 
 data InputConnection
@@ -176,6 +177,7 @@ data GLRenderTarget
     = GLRenderTarget
     { framebufferObject         :: GLuint
     , framebufferDrawbuffers    :: Maybe [GLenum]
+    , framebufferSize           :: Maybe V3U
     } deriving Eq
 
 data GLOutput
