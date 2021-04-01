@@ -791,14 +791,15 @@ setupRenderTarget glInput GLRenderTarget{..} = do
                         (w,h) <- readIORef $ screenSize input
                         glViewport 0 0 (fromIntegral w) (fromIntegral h)
 
+  case framebufferSize of
+    Nothing         -> setMainScreenSize
+    Just (V3 w h _) -> glViewport 0 0 (fromIntegral w) (fromIntegral h)
+
+  -- bind render target
   glBindFramebuffer GL_DRAW_FRAMEBUFFER framebufferObject
   case framebufferDrawbuffers of
-      Nothing -> setMainScreenSize
-      Just bl -> do
-        case framebufferSize of
-          Nothing -> pure ()
-          Just (V3 w h _) -> glViewport 0 0 (fromIntegral w) (fromIntegral h)
-        withArray bl $ glDrawBuffers (fromIntegral $ length bl)
+      Nothing -> pure ()
+      Just bl -> withArray bl $ glDrawBuffers (fromIntegral $ length bl)
 
 setupDrawContext glForceSetup glDrawContextRef glInput new = do
   old <- readIORef glDrawContextRef
