@@ -926,7 +926,7 @@ compileCommand texUnitMap samplers textures targets programs cmd = case cmd of
                                     case Map.lookup n (inputTextures $ programs ! p) of
                                         Nothing -> return () -- TODO: some drivers does heavy cross stage (vertex/fragment) dead code elimination; fail $ "internal error (SetSamplerUniform)! - " ++ show cmd
                                         Just i  -> case Map.lookup n texUnitMap of
-                                            Nothing -> fail $ "internal error (SetSamplerUniform - IORef)! - " ++ show cmd
+                                            Nothing -> error $ "internal error (SetSamplerUniform - IORef)! - " ++ show cmd
                                             Just r  -> modify $ \s -> s {samplerUniformMapping = IntMap.insert tu (GLSamplerUniform i r) $ samplerUniformMapping s}
     SetTexture tu t             -> modify $ \s -> s {textureMapping = IntMap.insert tu (textures ! t) $ textureMapping s}
     SetSampler tu i             -> modify $ \s -> s {samplerMapping = IntMap.insert tu (maybe (GLSampler 0) (samplers !) i) $ samplerMapping s}
