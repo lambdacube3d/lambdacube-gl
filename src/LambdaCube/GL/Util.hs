@@ -46,7 +46,7 @@ import qualified Data.Map as Map
 
 import Graphics.GL.Core33
 import LambdaCube.Linear
-import LambdaCube.IR
+import LambdaCube.IR as IR
 import LambdaCube.PipelineSchema
 import LambdaCube.GL.Type
 
@@ -360,22 +360,22 @@ comparisonFunctionToGLType a = case a of
 
 logicOperationToGLType :: LogicOperation -> GLenum
 logicOperationToGLType a = case a of
-    And             -> GL_AND
-    AndInverted     -> GL_AND_INVERTED
-    AndReverse      -> GL_AND_REVERSE
-    Clear           -> GL_CLEAR
-    Copy            -> GL_COPY
-    CopyInverted    -> GL_COPY_INVERTED
-    Equiv           -> GL_EQUIV
-    Invert          -> GL_INVERT
-    Nand            -> GL_NAND
-    Noop            -> GL_NOOP
-    Nor             -> GL_NOR
-    Or              -> GL_OR
-    OrInverted      -> GL_OR_INVERTED
-    OrReverse       -> GL_OR_REVERSE
-    Set             -> GL_SET
-    Xor             -> GL_XOR
+    IR.And             -> GL_AND
+    IR.AndInverted     -> GL_AND_INVERTED
+    IR.AndReverse      -> GL_AND_REVERSE
+    IR.Clear           -> GL_CLEAR
+    IR.Copy            -> GL_COPY
+    IR.CopyInverted    -> GL_COPY_INVERTED
+    IR.Equiv           -> GL_EQUIV
+    IR.Invert          -> GL_INVERT
+    IR.Nand            -> GL_NAND
+    IR.Noop            -> GL_NOOP
+    IR.Nor             -> GL_NOR
+    IR.Or              -> GL_OR
+    IR.OrInverted      -> GL_OR_INVERTED
+    IR.OrReverse       -> GL_OR_REVERSE
+    IR.Set             -> GL_SET
+    IR.Xor             -> GL_XOR
 
 blendEquationToGLType :: BlendEquation -> GLenum
 blendEquationToGLType a = case a of
