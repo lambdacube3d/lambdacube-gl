@@ -695,6 +695,7 @@ primitiveToFetchPrimitive prim = case prim of
     TriangleFan             -> Triangles
     LineStrip               -> Lines
     LineList                -> Lines
+    LineLoop                -> Lines
     PointList               -> Points
     TriangleStripAdjacency  -> TrianglesAdjacency
     TriangleListAdjacency   -> TrianglesAdjacency
@@ -708,6 +709,7 @@ primitiveToGLType p = case p of
     TriangleFan             -> GL_TRIANGLE_FAN
     LineStrip               -> GL_LINE_STRIP
     LineList                -> GL_LINES
+    LineLoop                -> GL_LINE_LOOP
     PointList               -> GL_POINTS
     TriangleStripAdjacency  -> GL_TRIANGLE_STRIP_ADJACENCY
     TriangleListAdjacency   -> GL_TRIANGLES_ADJACENCY

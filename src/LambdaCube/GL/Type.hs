@@ -464,6 +464,7 @@ data Primitive
     | TriangleFan
     | LineStrip
     | LineList
+    | LineLoop
     | PointList
     | TriangleStripAdjacency
     | TriangleListAdjacency
