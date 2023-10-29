@@ -106,7 +106,11 @@ uploadMeshToGPU mesh@(Mesh attrs mPrim) = do
     vBuf <- compileBuffer [meshAttrToArray a | a <- Map.elems attrs]
     (indices,prim) <- case mPrim of
         P_Points            -> return (Nothing,PointList)
+        P_Lines             -> return (Nothing,LineList)
+        P_LineStrip         -> return (Nothing,LineStrip)
+        P_LineLoop          -> return (Nothing,LineLoop)
         P_TriangleStrip     -> return (Nothing,TriangleStrip)
+        P_TriangleFan       -> return (Nothing,TriangleFan)
         P_Triangles         -> return (Nothing,TriangleList)
         P_TriangleStripI v  -> (,TriangleStrip) <$> mkIndexBuf v
         P_TrianglesI v      -> (,TriangleList) <$> mkIndexBuf v
